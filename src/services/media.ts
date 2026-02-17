@@ -128,6 +128,27 @@ export class MediaService {
       throw error;
     }
   }
+
+  /**
+   * 获取媒体文件
+   */
+  async getMediaFile(id: number) {
+    logger.info(`getMediaFile called with id: ${id}`);
+
+    try {
+      const mediaFile = await prisma.mediaFile.findUnique({
+        where: { id },
+        include: {
+          collection: true,
+        },
+      });
+      logger.info(`Media file found: ${mediaFile ? mediaFile.fileType : 'not found'}`);
+      return mediaFile;
+    } catch (error) {
+      logger.error(`Error in getMediaFile: ${error}`, error);
+      throw error;
+    }
+  }
 }
 
 export default new MediaService();

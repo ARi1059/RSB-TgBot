@@ -15,6 +15,7 @@ import { publishFlow } from './conversations/publishFlow';
 import { setWelcomeFlow } from './conversations/setWelcomeFlow';
 import { editCollectionFlow } from './conversations/editCollectionFlow';
 import { sendMediaFile, sendMediaGroup } from './handlers/media';
+import mediaService from '../services/media';
 
 // 加载环境变量
 config();
@@ -179,10 +180,39 @@ bot.command('edit', adminOnly, async (ctx) => {
     return;
   }
 
-  // 将合集 ID 保存到 session
-  (ctx as any).session.editCollectionId = collectionId;
+  // 显示合集信息和文件列表
+  let message = `📝 编辑合集\n\n`;
+  message += `📦 标题：${collection.title}\n`;
+  message += `📝 描述：${collection.description || '无'}\n`;
+  message += `📁 文件数量：${collection.mediaFiles.length}\n\n`;
+  message += `文件列表：\n`;
 
-  await ctx.conversation.enter('editCollectionFlow');
+  for (const media of collection.mediaFiles) {
+    const fileTypeEmoji = media.fileType === 'photo' ? '🖼️' :
+                          media.fileType === 'video' ? '🎥' :
+                          media.fileType === 'audio' ? '🎵' : '📄';
+    message += `${fileTypeEmoji} ID: ${media.id} - ${media.fileType}\n`;
+  }
+
+  // 创建按钮
+  const keyboard = new InlineKeyboard()
+    .text('✏️ 编辑标题/描述', `edit_meta:${collectionId}`).row();
+
+  // 为每个文件添加删除按钮（每行2个按钮）
+  for (let i = 0; i < collection.mediaFiles.length; i++) {
+    const media = collection.mediaFiles[i];
+    const fileTypeEmoji = media.fileType === 'photo' ? '🖼️' :
+                          media.fileType === 'video' ? '🎥' :
+                          media.fileType === 'audio' ? '🎵' : '📄';
+    keyboard.text(`🗑️ ${fileTypeEmoji} ${media.id}`, `delete_media:${media.id}`);
+
+    // 每2个按钮换行
+    if (i % 2 === 1 || i === collection.mediaFiles.length - 1) {
+      keyboard.row();
+    }
+  }
+
+  await ctx.reply(message, { reply_markup: keyboard });
 });
 
 // /delete 命令（管理员）
@@ -361,11 +391,159 @@ bot.on('callback_query:data', async (ctx) => {
   if (data.startsWith('edit_collection:')) {
     const collectionId = parseInt(data.split(':')[1]);
 
+    // 检查合集是否存在
+    const collection = await collectionService.getCollectionById(collectionId);
+
+    if (!collection) {
+      await ctx.answerCallbackQuery({ text: '❌ 合集不存在' });
+      return;
+    }
+
+    // 显示合集信息和文件列表
+    let message = `📝 编辑合集\n\n`;
+    message += `📦 标题：${collection.title}\n`;
+    message += `📝 描述：${collection.description || '无'}\n`;
+    message += `📁 文件数量：${collection.mediaFiles.length}\n\n`;
+    message += `文件列表：\n`;
+
+    for (const media of collection.mediaFiles) {
+      const fileTypeEmoji = media.fileType === 'photo' ? '🖼️' :
+                            media.fileType === 'video' ? '🎥' :
+                            media.fileType === 'audio' ? '🎵' : '📄';
+      message += `${fileTypeEmoji} ID: ${media.id} - ${media.fileType}\n`;
+    }
+
+    // 创建按钮
+    const keyboard = new InlineKeyboard()
+      .text('✏️ 编辑标题/描述', `edit_meta:${collectionId}`).row();
+
+    // 为每个文件添加删除按钮（每行2个按钮）
+    for (let i = 0; i < collection.mediaFiles.length; i++) {
+      const media = collection.mediaFiles[i];
+      const fileTypeEmoji = media.fileType === 'photo' ? '🖼️' :
+                            media.fileType === 'video' ? '🎥' :
+                            media.fileType === 'audio' ? '🎵' : '📄';
+      keyboard.text(`🗑️ ${fileTypeEmoji} ${media.id}`, `delete_media:${media.id}`);
+
+      // 每2个按钮换行
+      if (i % 2 === 1 || i === collection.mediaFiles.length - 1) {
+        keyboard.row();
+      }
+    }
+
+    await ctx.reply(message, { reply_markup: keyboard });
+    await ctx.answerCallbackQuery();
+    return;
+  }
+
+  // 处理编辑标题/描述按钮
+  if (data.startsWith('edit_meta:')) {
+    const collectionId = parseInt(data.split(':')[1]);
+
     // 将合集 ID 保存到 session
     (ctx as any).session.editCollectionId = collectionId;
 
     await ctx.answerCallbackQuery();
     await ctx.conversation.enter('editCollectionFlow');
+    return;
+  }
+
+  // 处理删除媒体文件按钮
+  if (data.startsWith('delete_media:')) {
+    const mediaId = parseInt(data.split(':')[1]);
+
+    try {
+      const media = await mediaService.getMediaFile(mediaId);
+
+      if (!media) {
+        await ctx.answerCallbackQuery({ text: '❌ 文件不存在' });
+        return;
+      }
+
+      // 请求确认
+      const keyboard = new InlineKeyboard()
+        .text('✅ 确认删除', `confirm_delete_media:${mediaId}`)
+        .text('❌ 取消', `cancel_delete_media:${media.collectionId}`);
+
+      const fileTypeEmoji = media.fileType === 'photo' ? '🖼️' :
+                            media.fileType === 'video' ? '🎥' :
+                            media.fileType === 'audio' ? '🎵' : '📄';
+
+      const confirmMessage =
+        `⚠️ 确认删除此文件？\n\n` +
+        `${fileTypeEmoji} 类型：${media.fileType}\n` +
+        `📦 所属合集：${media.collection.title}\n` +
+        `🆔 文件 ID：${mediaId}\n\n` +
+        `此操作不可撤销！`;
+
+      // 根据文件类型发送预览
+      if (media.fileType === 'photo') {
+        await ctx.replyWithPhoto(media.fileId, {
+          caption: confirmMessage,
+          reply_markup: keyboard,
+        });
+      } else if (media.fileType === 'video') {
+        await ctx.replyWithVideo(media.fileId, {
+          caption: confirmMessage,
+          reply_markup: keyboard,
+        });
+      } else if (media.fileType === 'audio') {
+        await ctx.replyWithAudio(media.fileId, {
+          caption: confirmMessage,
+          reply_markup: keyboard,
+        });
+      } else if (media.fileType === 'document') {
+        await ctx.replyWithDocument(media.fileId, {
+          caption: confirmMessage,
+          reply_markup: keyboard,
+        });
+      } else {
+        // 其他类型，只发送文本
+        await ctx.reply(confirmMessage, { reply_markup: keyboard });
+      }
+
+      await ctx.answerCallbackQuery();
+    } catch (error) {
+      logger.error('Failed to handle delete media button', error);
+      await ctx.answerCallbackQuery({ text: '❌ 操作失败' });
+    }
+    return;
+  }
+
+  // 处理确认删除媒体文件
+  if (data.startsWith('confirm_delete_media:')) {
+    const mediaId = parseInt(data.split(':')[1]);
+
+    try {
+      const media = await mediaService.getMediaFile(mediaId);
+
+      if (!media) {
+        await ctx.answerCallbackQuery({ text: '❌ 文件不存在' });
+        return;
+      }
+
+      const collectionId = media.collectionId;
+      await mediaService.deleteMediaFile(mediaId);
+
+      await ctx.editMessageText(
+        `✅ 文件已删除\n\n` +
+        `类型：${media.fileType}\n` +
+        `所属合集：${media.collection.title}`
+      );
+
+      await ctx.answerCallbackQuery({ text: '✅ 删除成功' });
+      logger.info(`Media file ${mediaId} deleted from collection ${collectionId}`);
+    } catch (error) {
+      logger.error('Failed to delete media file', error);
+      await ctx.answerCallbackQuery({ text: '❌ 删除失败，请重试' });
+    }
+    return;
+  }
+
+  // 处理取消删除媒体文件
+  if (data.startsWith('cancel_delete_media:')) {
+    await ctx.editMessageText('❌ 已取消删除');
+    await ctx.answerCallbackQuery({ text: '已取消' });
     return;
   }
 
