@@ -1,0 +1,38 @@
+{
+  "name": "rsb-tgbot",
+  "version": "1.0.0",
+  "description": "Telegram Bot for media collection management with file_id storage",
+  "main": "dist/bot/index.js",
+  "scripts": {
+    "dev": "tsx watch src/bot/index.ts",
+    "build": "tsc",
+    "start": "node dist/bot/index.js",
+    "userbot": "tsx src/userbot/index.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "media",
+    "collection"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@grammyjs/conversations": "^1.2.0",
+    "@prisma/client": "^5.22.0",
+    "dotenv": "^16.4.7",
+    "grammy": "^1.30.0",
+    "https-proxy-agent": "^7.0.6",
+    "nanoid": "^5.0.9",
+    "telegram": "^2.25.11"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
