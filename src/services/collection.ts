@@ -76,6 +76,68 @@ export class CollectionService {
   }
 
   /**
+   * 根据 ID 获取合集
+   */
+  async getCollectionById(id: number) {
+    logger.info(`getCollectionById called with id: ${id}`);
+
+    try {
+      const collection = await prisma.collection.findUnique({
+        where: { id },
+        include: {
+          mediaFiles: {
+            orderBy: { order: 'asc' },
+          },
+          creator: true,
+        },
+      });
+
+      if (collection) {
+        logger.info(`Collection found: ${collection.title} with ${collection.mediaFiles.length} files`);
+      } else {
+        logger.warn(`Collection not found for id: ${id}`);
+      }
+
+      return collection;
+    } catch (error) {
+      logger.error(`Error in getCollectionById: ${error}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 根据标题获取合集
+   */
+  async getCollectionByTitle(title: string, creatorId: number) {
+    logger.info(`getCollectionByTitle called with title: ${title}, creatorId: ${creatorId}`);
+
+    try {
+      const collection = await prisma.collection.findFirst({
+        where: {
+          title,
+          creatorId,
+        },
+        include: {
+          mediaFiles: {
+            orderBy: { order: 'asc' },
+          },
+        },
+      });
+
+      if (collection) {
+        logger.info(`Collection found: ${collection.title} with ${collection.mediaFiles.length} files`);
+      } else {
+        logger.info(`Collection not found for title: ${title}`);
+      }
+
+      return collection;
+    } catch (error) {
+      logger.error(`Error in getCollectionByTitle: ${error}`, error);
+      throw error;
+    }
+  }
+
+  /**
    * 获取所有合集（分页）
    */
   async getCollections(page: number = 1, limit: number = 10, filters?: {
@@ -89,7 +151,10 @@ export class CollectionService {
 
       const where: any = {};
       if (filters?.title) {
-        where.title = { contains: filters.title, mode: 'insensitive' };
+        where.OR = [
+          { title: { contains: filters.title, mode: 'insensitive' } },
+          { description: { contains: filters.title, mode: 'insensitive' } },
+        ];
       }
       if (filters?.creatorId) {
         where.creatorId = filters.creatorId;
@@ -139,6 +204,28 @@ export class CollectionService {
       return collection;
     } catch (error) {
       logger.error(`Error in deleteCollection: ${error}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 更新合集
+   */
+  async updateCollection(id: number, data: {
+    title?: string;
+    description?: string;
+  }) {
+    logger.info(`updateCollection called with id: ${id}, data: ${JSON.stringify(data)}`);
+
+    try {
+      const collection = await prisma.collection.update({
+        where: { id },
+        data,
+      });
+      logger.info(`Collection updated: ${JSON.stringify(collection)}`);
+      return collection;
+    } catch (error) {
+      logger.error(`Error in updateCollection: ${error}`, error);
       throw error;
     }
   }

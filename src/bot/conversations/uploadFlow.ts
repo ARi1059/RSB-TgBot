@@ -1,5 +1,5 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
-import { Context } from 'grammy';
+import { Context, InlineKeyboard } from 'grammy';
 import mediaService from '../../services/media';
 import collectionService from '../../services/collection';
 import userService from '../../services/user';
@@ -114,38 +114,89 @@ export async function uploadFlow(conversation: MyConversation, ctx: MyContext) {
       username: ctx.from?.username,
     });
 
-    const collection = await collectionService.createCollection({
-      title,
-      description,
-      creatorId: user.id,
-    });
+    // 检查是否已存在相同标题的合集
+    let collection = await collectionService.getCollectionByTitle(title, user.id);
+    let isNewCollection = false;
 
-    // 保存媒体文件
-    const mediaFiles = uploadedFiles.map((file, index) => ({
-      collectionId: collection.id,
-      fileId: file.fileId,
-      uniqueFileId: file.uniqueFileId,
-      fileType: file.fileType,
-      order: index,
-    }));
+    if (collection) {
+      // 合集已存在，追加文件
+      await ctx.reply(`📦 检测到已存在的合集"${title}"，将追加文件到该合集`);
 
-    await mediaService.addMediaFiles(mediaFiles);
+      // 获取当前最大的 order 值
+      const maxOrder = collection.mediaFiles.length > 0
+        ? Math.max(...collection.mediaFiles.map(f => f.order))
+        : -1;
+
+      // 保存媒体文件，order 从 maxOrder + 1 开始
+      const mediaFiles = uploadedFiles.map((file, index) => ({
+        collectionId: collection!.id,
+        fileId: file.fileId,
+        uniqueFileId: file.uniqueFileId,
+        fileType: file.fileType,
+        order: maxOrder + 1 + index,
+      }));
+
+      await mediaService.addMediaFiles(mediaFiles);
+
+      // 更新描述（直接覆盖）
+      if (description !== undefined) {
+        await collectionService.updateCollection(collection.id, { description });
+        collection.description = description;
+      }
+
+      // 重新获取完整的合集信息（包含 mediaFiles）
+      collection = await collectionService.getCollectionById(collection.id);
+    } else {
+      // 创建新合集
+      isNewCollection = true;
+      const newCollection = await collectionService.createCollection({
+        title,
+        description,
+        creatorId: user.id,
+      });
+
+      // 保存媒体文件
+      const mediaFiles = uploadedFiles.map((file, index) => ({
+        collectionId: newCollection.id,
+        fileId: file.fileId,
+        uniqueFileId: file.uniqueFileId,
+        fileType: file.fileType,
+        order: index,
+      }));
+
+      await mediaService.addMediaFiles(mediaFiles);
+
+      // 重新获取完整的合集信息（包含 mediaFiles）
+      collection = await collectionService.getCollectionById(newCollection.id);
+    }
+
+    // 确保 collection 不为 null
+    if (!collection) {
+      await ctx.reply('❌ 操作失败，请稍后重试');
+      return;
+    }
 
     // 生成深链
     const deepLink = `https://t.me/${process.env.BOT_USERNAME}?start=${collection.token}`;
 
+    // 创建编辑和删除按钮
+    const keyboard = new InlineKeyboard()
+      .text('✏️ 编辑', `edit_collection:${collection.id}`)
+      .text('🗑️ 删除', `delete_collection:${collection.id}`);
+
     await ctx.reply(
-      '✅ 合集创建成功！\n\n' +
+      `✅ ${isNewCollection ? '合集创建成功' : '文件追加成功'}！\n\n` +
       `📦 标题：${title}\n` +
-      `📝 描述：${description || '无'}\n` +
-      `📁 文件数量：${uploadedFiles.length}\n` +
+      `📝 描述：${collection.description || '无'}\n` +
+      `📁 ${isNewCollection ? '文件数量' : '新增文件'}：${uploadedFiles.length}\n` +
       `⚠️ 跳过重复：${duplicateCount}\n\n` +
-      `🔗 分享链接：\n${deepLink}`
+      `🔗 分享链接：\n${deepLink}`,
+      { reply_markup: keyboard }
     );
 
-    logger.info(`Collection created: ${collection.id} with ${uploadedFiles.length} files`);
+    logger.info(`Collection ${isNewCollection ? 'created' : 'updated'}: ${collection.id} with ${uploadedFiles.length} files`);
   } catch (error) {
-    logger.error('Failed to create collection', error);
-    await ctx.reply('❌ 创建合集失败，请稍后重试');
+    logger.error('Failed to create/update collection', error);
+    await ctx.reply('❌ 操作失败，请稍后重试');
   }
 }

@@ -83,7 +83,7 @@ export async function publishFlow(conversation: MyConversation, ctx: MyContext) 
 
       // 如果用户 block 了 bot，标记为非激活
       if (error.error_code === 403) {
-        await userService.deactivateUser(user.telegramId);
+        await userService.deactivateUser(Number(user.telegramId));
         logger.info(`User ${user.telegramId} deactivated (blocked bot)`);
       }
     }

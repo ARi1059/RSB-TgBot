@@ -1,5 +1,5 @@
-import { Bot, session } from 'grammy';
-import { conversations, createConversation } from '@grammyjs/conversations';
+import { Bot, Context, session } from 'grammy';
+import { conversations, createConversation, ConversationFlavor } from '@grammyjs/conversations';
 
 export interface SessionData {
   uploadingFiles?: Array<{
@@ -7,12 +7,15 @@ export interface SessionData {
     uniqueFileId: string;
     fileType: string;
   }>;
+  editCollectionId?: number;
 }
+
+export type MyContext = Context & ConversationFlavor;
 
 /**
  * 配置会话中间件
  */
-export function setupSession(bot: Bot) {
+export function setupSession(bot: Bot<MyContext>) {
   // 使用内存存储会话数据
   bot.use(session({
     initial: (): SessionData => ({}),

@@ -2,8 +2,9 @@ import { Bot } from 'grammy';
 import { config } from 'dotenv';
 import { createConversation } from '@grammyjs/conversations';
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import { InlineKeyboard } from 'grammy';
 import Logger from '../utils/logger';
-import { setupSession } from './middlewares/session';
+import { setupSession, MyContext } from './middlewares/session';
 import { adminOnly } from './middlewares/auth';
 import userService from '../services/user';
 import settingService from '../services/setting';
@@ -12,6 +13,7 @@ import { renderTemplate } from '../utils/template';
 import { uploadFlow } from './conversations/uploadFlow';
 import { publishFlow } from './conversations/publishFlow';
 import { setWelcomeFlow } from './conversations/setWelcomeFlow';
+import { editCollectionFlow } from './conversations/editCollectionFlow';
 import { sendMediaFile, sendMediaGroup } from './handlers/media';
 
 // 加载环境变量
@@ -35,7 +37,7 @@ if (proxyUrl) {
 }
 
 // 创建 Bot 实例
-const bot = new Bot(process.env.BOT_TOKEN!, botConfig);
+const bot = new Bot<MyContext>(process.env.BOT_TOKEN!, botConfig);
 
 // 配置会话
 setupSession(bot);
@@ -44,6 +46,7 @@ setupSession(bot);
 bot.use(createConversation(uploadFlow));
 bot.use(createConversation(publishFlow));
 bot.use(createConversation(setWelcomeFlow));
+bot.use(createConversation(editCollectionFlow));
 
 // /start 命令
 bot.command('start', async (ctx) => {
@@ -103,31 +106,16 @@ bot.command('start', async (ctx) => {
     await ctx.reply(renderedMessage);
 
     // 获取所有合集列表
-    const { collections, total } = await collectionService.getCollections(1, 20);
+    const { collections, total, page, totalPages } = await collectionService.getCollections(1, 10);
 
     if (collections.length === 0) {
       await ctx.reply('📭 暂无可访问的合集');
     } else {
-      let message = `📚 可访问的合集列表（共 ${total} 个）\n\n`;
+      const { message, keyboard } = buildCollectionListMessage(collections, total, page, totalPages);
 
-      for (const collection of collections) {
-        const fileCount = (collection as any)._count.mediaFiles;
-        const deepLink = `https://t.me/${process.env.BOT_USERNAME}?start=${collection.token}`;
-
-        message += `📦 ${collection.title}\n`;
-        if (collection.description) {
-          message += `   📝 ${collection.description}\n`;
-        }
-        message += `   📁 ${fileCount} 个文件\n`;
-        message += `   🔗 ${deepLink}\n`;
-        message += `   📅 ${collection.createdAt.toLocaleDateString()}\n\n`;
-      }
-
-      if (total > 20) {
-        message += `\n💡 显示前 20 个合集`;
-      }
-
-      await ctx.reply(message);
+      await ctx.reply(message, {
+        reply_markup: totalPages > 1 ? keyboard : undefined,
+      });
     }
   }
 });
@@ -153,10 +141,13 @@ bot.command('display', adminOnly, async (ctx) => {
     message += `📦 ${collection.title}\n`;
     message += `   📁 ${fileCount} 个文件\n`;
     message += `   🔗 t.me/${process.env.BOT_USERNAME}?start=${collection.token}\n`;
-    message += `   📅 ${collection.createdAt.toLocaleDateString()}\n\n`;
+    message += `   📅 ${collection.createdAt.toLocaleDateString()}\n`;
+    message += `   ID: ${collection.id}\n\n`;
   }
 
-  message += `第 ${page}/${totalPages} 页`;
+  message += `第 ${page}/${totalPages} 页\n\n`;
+  message += `💡 使用 /edit <ID> 编辑合集\n`;
+  message += `💡 使用 /delete <ID> 删除合集`;
 
   await ctx.reply(message);
 });
@@ -169,6 +160,247 @@ bot.command('publish', adminOnly, async (ctx) => {
 // /setwelcome 命令（管理员）
 bot.command('setwelcome', adminOnly, async (ctx) => {
   await ctx.conversation.enter('setWelcomeFlow');
+});
+
+// /edit 命令（管理员）
+bot.command('edit', adminOnly, async (ctx) => {
+  const collectionId = parseInt(ctx.match as string);
+
+  if (!collectionId || isNaN(collectionId)) {
+    await ctx.reply('❌ 请提供合集 ID\n用法: /edit <ID>');
+    return;
+  }
+
+  // 检查合集是否存在
+  const collection = await collectionService.getCollectionById(collectionId);
+
+  if (!collection) {
+    await ctx.reply('❌ 合集不存在');
+    return;
+  }
+
+  // 将合集 ID 保存到 session
+  (ctx as any).session.editCollectionId = collectionId;
+
+  await ctx.conversation.enter('editCollectionFlow');
+});
+
+// /delete 命令（管理员）
+bot.command('delete', adminOnly, async (ctx) => {
+  const collectionId = parseInt(ctx.match as string);
+
+  if (!collectionId || isNaN(collectionId)) {
+    await ctx.reply('❌ 请提供合集 ID\n用法: /delete <ID>');
+    return;
+  }
+
+  // 检查合集是否存在
+  const collection = await collectionService.getCollectionById(collectionId);
+
+  if (!collection) {
+    await ctx.reply('❌ 合集不存在');
+    return;
+  }
+
+  // 请求确认
+  const keyboard = new InlineKeyboard()
+    .text('✅ 确认删除', `confirm_delete:${collectionId}`)
+    .text('❌ 取消', `cancel_delete:${collectionId}`);
+
+  await ctx.reply(
+    `⚠️ 确认删除合集？\n\n` +
+    `📦 标题：${collection.title}\n` +
+    `📁 文件数量：${collection.mediaFiles.length}\n\n` +
+    `此操作不可撤销！`,
+    { reply_markup: keyboard }
+  );
+});
+
+// 辅助函数：构建合集列表消息和键盘
+function buildCollectionListMessage(collections: any[], total: number, page: number, totalPages: number, keyword?: string) {
+  let message = keyword
+    ? `🔍 搜索结果：找到 ${total} 个匹配的合集\n\n`
+    : `📚 可访问的合集列表（共 ${total} 个）\n\n`;
+
+  for (const collection of collections) {
+    const fileCount = (collection as any)._count.mediaFiles;
+    const deepLink = `https://t.me/${process.env.BOT_USERNAME}?start=${collection.token}`;
+
+    message += `📦 ${collection.title}\n`;
+    if (collection.description) {
+      message += `   📝 ${collection.description}\n`;
+    }
+    message += `   📁 ${fileCount} 个文件\n`;
+    message += `   🔗 ${deepLink}\n`;
+    message += `   📅 ${collection.createdAt.toLocaleDateString()}\n\n`;
+  }
+
+  message += `\n📄 第 ${page}/${totalPages} 页`;
+
+  // 构建翻页键盘
+  const keyboard = new InlineKeyboard();
+
+  if (page > 1) {
+    keyboard.text('⬅️ 上一页', `page:${keyword || ''}:${page - 1}`);
+  }
+
+  if (page < totalPages) {
+    keyboard.text('➡️ 下一页', `page:${keyword || ''}:${page + 1}`);
+  }
+
+  return { message, keyboard };
+}
+
+// 处理普通用户的文本消息 - 搜索合集
+bot.on('message:text', async (ctx) => {
+  const text = ctx.message.text;
+
+  // 忽略命令
+  if (text.startsWith('/')) {
+    return;
+  }
+
+  // 使用关键词搜索合集
+  const keyword = text.trim();
+
+  if (!keyword) {
+    await ctx.reply('请输入关键词来搜索合集');
+    return;
+  }
+
+  try {
+    const { collections, total, page, totalPages } = await collectionService.getCollections(1, 10, { title: keyword });
+
+    if (collections.length === 0) {
+      await ctx.reply(`🔍 未找到包含 "${keyword}" 的合集`);
+      return;
+    }
+
+    const { message, keyboard } = buildCollectionListMessage(collections, total, page, totalPages, keyword);
+
+    await ctx.reply(message, {
+      reply_markup: totalPages > 1 ? keyboard : undefined,
+    });
+  } catch (error) {
+    logger.error('Failed to search collections', error);
+    await ctx.reply('❌ 搜索失败，请稍后重试');
+  }
+});
+
+// 处理翻页回调
+bot.on('callback_query:data', async (ctx) => {
+  const data = ctx.callbackQuery.data;
+
+  // 处理翻页
+  if (data.startsWith('page:')) {
+    // 解析回调数据：page:keyword:pageNumber
+    const parts = data.split(':');
+    const keyword = parts[1] || '';
+    const page = parseInt(parts[2]);
+
+    try {
+      const filters = keyword ? { title: keyword } : undefined;
+      const { collections, total, page: currentPage, totalPages } = await collectionService.getCollections(page, 10, filters);
+
+      if (collections.length === 0) {
+        await ctx.answerCallbackQuery({ text: '没有更多结果了' });
+        return;
+      }
+
+      const { message, keyboard } = buildCollectionListMessage(collections, total, currentPage, totalPages, keyword || undefined);
+
+      await ctx.editMessageText(message, {
+        reply_markup: totalPages > 1 ? keyboard : undefined,
+      });
+
+      await ctx.answerCallbackQuery();
+    } catch (error) {
+      logger.error('Failed to handle pagination', error);
+      await ctx.answerCallbackQuery({ text: '❌ 翻页失败，请重试' });
+    }
+    return;
+  }
+
+  // 处理删除确认
+  if (data.startsWith('confirm_delete:')) {
+    const collectionId = parseInt(data.split(':')[1]);
+
+    try {
+      const collection = await collectionService.getCollectionById(collectionId);
+
+      if (!collection) {
+        await ctx.answerCallbackQuery({ text: '❌ 合集不存在' });
+        return;
+      }
+
+      await collectionService.deleteCollection(collectionId);
+
+      await ctx.editMessageText(
+        `✅ 合集已删除\n\n` +
+        `📦 标题：${collection.title}\n` +
+        `📁 文件数量：${collection.mediaFiles.length}`
+      );
+
+      await ctx.answerCallbackQuery({ text: '✅ 删除成功' });
+      logger.info(`Collection ${collectionId} deleted`);
+    } catch (error) {
+      logger.error('Failed to delete collection', error);
+      await ctx.answerCallbackQuery({ text: '❌ 删除失败，请重试' });
+    }
+    return;
+  }
+
+  // 处理取消删除
+  if (data.startsWith('cancel_delete:')) {
+    await ctx.editMessageText('❌ 已取消删除');
+    await ctx.answerCallbackQuery({ text: '已取消' });
+    return;
+  }
+
+  // 处理编辑按钮
+  if (data.startsWith('edit_collection:')) {
+    const collectionId = parseInt(data.split(':')[1]);
+
+    // 将合集 ID 保存到 session
+    (ctx as any).session.editCollectionId = collectionId;
+
+    await ctx.answerCallbackQuery();
+    await ctx.conversation.enter('editCollectionFlow');
+    return;
+  }
+
+  // 处理删除按钮
+  if (data.startsWith('delete_collection:')) {
+    const collectionId = parseInt(data.split(':')[1]);
+
+    try {
+      const collection = await collectionService.getCollectionById(collectionId);
+
+      if (!collection) {
+        await ctx.answerCallbackQuery({ text: '❌ 合集不存在' });
+        return;
+      }
+
+      // 请求确认
+      const keyboard = new InlineKeyboard()
+        .text('✅ 确认删除', `confirm_delete:${collectionId}`)
+        .text('❌ 取消', `cancel_delete:${collectionId}`);
+
+      await ctx.reply(
+        `⚠️ 确认删除合集？\n\n` +
+        `📦 标题：${collection.title}\n` +
+        `📁 文件数量：${collection.mediaFiles.length}\n\n` +
+        `此操作不可撤销！`,
+        { reply_markup: keyboard }
+      );
+
+      await ctx.answerCallbackQuery();
+    } catch (error) {
+      logger.error('Failed to handle delete button', error);
+      await ctx.answerCallbackQuery({ text: '❌ 操作失败' });
+    }
+    return;
+  }
 });
 
 // 错误处理
