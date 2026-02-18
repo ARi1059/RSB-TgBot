@@ -82,17 +82,12 @@ async function showEditCollectionUI(ctx: any, collection: any, collectionId: num
   let message = `📝 编辑合集\n\n`;
   message += `📦 标题：${collection.title}\n`;
   message += `📝 描述：${collection.description || '无'}\n`;
-  message += `📁 文件数量：${collection.mediaFiles.length}\n\n`;
-  message += `文件列表：\n`;
-
-  for (const media of collection.mediaFiles) {
-    const fileTypeEmoji = getFileTypeEmoji(media.fileType);
-    message += `${fileTypeEmoji} ID: ${media.id} - ${media.fileType}\n`;
-  }
+  message += `📁 文件数量：${collection.mediaFiles.length}\n`;
 
   const keyboard = new InlineKeyboard()
     .text('✏️ 编辑标题/描述', `edit_meta:${collectionId}`).row();
 
+  // 为每个文件添加删除按钮（每行2个按钮）
   for (let i = 0; i < collection.mediaFiles.length; i++) {
     const media = collection.mediaFiles[i];
     const fileTypeEmoji = getFileTypeEmoji(media.fileType);
