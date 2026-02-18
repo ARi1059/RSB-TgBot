@@ -15,8 +15,6 @@ export class UserService {
     lastName?: string;
     username?: string;
   }) {
-    logger.info(`getOrCreateUser called with telegramId: ${telegramId}, userData: ${JSON.stringify(userData)}`);
-
     try {
       let user = await prisma.user.findUnique({
         where: { telegramId },
@@ -32,8 +30,6 @@ export class UserService {
           },
         });
         logger.info(`User created: id=${user.id}, telegramId=${user.telegramId}`);
-      } else {
-        logger.info(`User found: id=${user.id}, telegramId=${user.telegramId}`);
       }
 
       return user;
@@ -47,13 +43,9 @@ export class UserService {
    * 检查用户是否为管理员
    */
   async isAdmin(telegramId: number): Promise<boolean> {
-    logger.info(`isAdmin called with telegramId: ${telegramId}`);
-
     try {
       const adminIds = process.env.ADMIN_IDS?.split(',').map(id => parseInt(id.trim())) || [];
-      const result = adminIds.includes(telegramId);
-      logger.info(`isAdmin result: ${result} (adminIds: ${adminIds.join(',')})`);
-      return result;
+      return adminIds.includes(telegramId);
     } catch (error) {
       logger.error(`Error in isAdmin: ${error}`, error);
       throw error;
@@ -64,13 +56,10 @@ export class UserService {
    * 获取所有激活的用户
    */
   async getActiveUsers() {
-    logger.info('getActiveUsers called');
-
     try {
       const users = await prisma.user.findMany({
         where: { isActive: true },
       });
-      logger.info(`Found ${users.length} active users`);
       return users;
     } catch (error) {
       logger.error(`Error in getActiveUsers: ${error}`, error);
@@ -82,14 +71,12 @@ export class UserService {
    * 标记用户为非激活状态
    */
   async deactivateUser(telegramId: number) {
-    logger.info(`deactivateUser called with telegramId: ${telegramId}`);
-
     try {
       const user = await prisma.user.update({
         where: { telegramId },
         data: { isActive: false },
       });
-      logger.info(`User deactivated: ${JSON.stringify(user)}`);
+      logger.info(`User deactivated: ${user.telegramId}`);
       return user;
     } catch (error) {
       logger.error(`Error in deactivateUser: ${error}`, error);

@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/bot/index.js",
     "userbot": "tsx src/userbot/index.ts",
+    "userbot:login": "tsx scripts/login-userbot.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
@@ -23,7 +24,9 @@
   "dependencies": {
     "@grammyjs/conversations": "^1.2.0",
     "@prisma/client": "^5.22.0",
+    "axios": "^1.13.5",
     "dotenv": "^16.4.7",
+    "form-data": "^4.0.5",
     "grammy": "^1.30.0",
     "https-proxy-agent": "^7.0.6",
     "nanoid": "^5.0.9",

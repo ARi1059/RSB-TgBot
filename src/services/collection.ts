@@ -16,8 +16,6 @@ export class CollectionService {
     description?: string;
     creatorId: number;
   }) {
-    logger.info(`createCollection called with data: ${JSON.stringify(data)}`);
-
     try {
       // 生成唯一 token
       let token = generateToken();
@@ -37,7 +35,7 @@ export class CollectionService {
         },
       });
 
-      logger.info(`Collection created: ${JSON.stringify(collection)}`);
+      logger.info(`Collection created: ${collection.id} - ${collection.title}`);
       return collection;
     } catch (error) {
       logger.error(`Error in createCollection: ${error}`, error);
@@ -49,8 +47,6 @@ export class CollectionService {
    * 根据 token 获取合集
    */
   async getCollectionByToken(token: string) {
-    logger.info(`getCollectionByToken called with token: ${token}`);
-
     try {
       const collection = await prisma.collection.findUnique({
         where: { token },
@@ -62,9 +58,7 @@ export class CollectionService {
         },
       });
 
-      if (collection) {
-        logger.info(`Collection found: ${collection.title} with ${collection.mediaFiles.length} files`);
-      } else {
+      if (!collection) {
         logger.warn(`Collection not found for token: ${token}`);
       }
 
@@ -79,8 +73,6 @@ export class CollectionService {
    * 根据 ID 获取合集
    */
   async getCollectionById(id: number) {
-    logger.info(`getCollectionById called with id: ${id}`);
-
     try {
       const collection = await prisma.collection.findUnique({
         where: { id },
@@ -92,9 +84,7 @@ export class CollectionService {
         },
       });
 
-      if (collection) {
-        logger.info(`Collection found: ${collection.title} with ${collection.mediaFiles.length} files`);
-      } else {
+      if (!collection) {
         logger.warn(`Collection not found for id: ${id}`);
       }
 
@@ -109,8 +99,6 @@ export class CollectionService {
    * 根据标题获取合集
    */
   async getCollectionByTitle(title: string, creatorId: number) {
-    logger.info(`getCollectionByTitle called with title: ${title}, creatorId: ${creatorId}`);
-
     try {
       const collection = await prisma.collection.findFirst({
         where: {
@@ -123,12 +111,6 @@ export class CollectionService {
           },
         },
       });
-
-      if (collection) {
-        logger.info(`Collection found: ${collection.title} with ${collection.mediaFiles.length} files`);
-      } else {
-        logger.info(`Collection not found for title: ${title}`);
-      }
 
       return collection;
     } catch (error) {
@@ -144,8 +126,6 @@ export class CollectionService {
     title?: string;
     creatorId?: number;
   }) {
-    logger.info(`getCollections called with page: ${page}, limit: ${limit}, filters: ${JSON.stringify(filters)}`);
-
     try {
       const skip = (page - 1) * limit;
 
@@ -176,8 +156,6 @@ export class CollectionService {
         prisma.collection.count({ where }),
       ]);
 
-      logger.info(`Found ${collections.length} collections (total: ${total})`);
-
       return {
         collections,
         total,
@@ -194,13 +172,11 @@ export class CollectionService {
    * 删除合集
    */
   async deleteCollection(id: number) {
-    logger.info(`deleteCollection called with id: ${id}`);
-
     try {
       const collection = await prisma.collection.delete({
         where: { id },
       });
-      logger.info(`Collection deleted: ${JSON.stringify(collection)}`);
+      logger.info(`Collection deleted: ${collection.id} - ${collection.title}`);
       return collection;
     } catch (error) {
       logger.error(`Error in deleteCollection: ${error}`, error);
@@ -215,14 +191,12 @@ export class CollectionService {
     title?: string;
     description?: string;
   }) {
-    logger.info(`updateCollection called with id: ${id}, data: ${JSON.stringify(data)}`);
-
     try {
       const collection = await prisma.collection.update({
         where: { id },
         data,
       });
-      logger.info(`Collection updated: ${JSON.stringify(collection)}`);
+      logger.info(`Collection updated: ${collection.id} - ${collection.title}`);
       return collection;
     } catch (error) {
       logger.error(`Error in updateCollection: ${error}`, error);

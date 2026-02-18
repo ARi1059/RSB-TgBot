@@ -14,7 +14,9 @@ import { uploadFlow } from './conversations/uploadFlow';
 import { publishFlow } from './conversations/publishFlow';
 import { setWelcomeFlow } from './conversations/setWelcomeFlow';
 import { editCollectionFlow } from './conversations/editCollectionFlow';
-import { sendMediaFile, sendMediaGroup } from './handlers/media';
+import { transferFlow } from './conversations/transferFlow';
+import { transferExecuteFlow } from './conversations/transferExecuteFlow';
+import { sendMediaGroup } from './handlers/media';
 import mediaService from '../services/media';
 
 // 加载环境变量
@@ -48,6 +50,61 @@ bot.use(createConversation(uploadFlow));
 bot.use(createConversation(publishFlow));
 bot.use(createConversation(setWelcomeFlow));
 bot.use(createConversation(editCollectionFlow));
+bot.use(createConversation(transferFlow));
+bot.use(createConversation(transferExecuteFlow));
+
+// 工具函数：获取文件类型对应的 emoji
+function getFileTypeEmoji(fileType: string): string {
+  switch (fileType) {
+    case 'photo': return '🖼️';
+    case 'video': return '🎥';
+    case 'audio': return '🎵';
+    default: return '📄';
+  }
+}
+
+// 工具函数：检查用户是否为管理员
+function isUserAdmin(userId: number): boolean {
+  const adminIds = process.env.ADMIN_IDS?.split(',').map(id => parseInt(id.trim())) || [];
+  return adminIds.includes(userId);
+}
+
+// 工具函数：构建删除合集确认消息
+function buildDeleteConfirmMessage(collection: any): string {
+  return `⚠️ 确认删除合集？\n\n` +
+    `📦 标题：${collection.title}\n` +
+    `📁 文件数量：${collection.mediaFiles.length}\n\n` +
+    `此操作不可撤销！`;
+}
+
+// 工具函数：显示编辑合集界面
+async function showEditCollectionUI(ctx: any, collection: any, collectionId: number) {
+  let message = `📝 编辑合集\n\n`;
+  message += `📦 标题：${collection.title}\n`;
+  message += `📝 描述：${collection.description || '无'}\n`;
+  message += `📁 文件数量：${collection.mediaFiles.length}\n\n`;
+  message += `文件列表：\n`;
+
+  for (const media of collection.mediaFiles) {
+    const fileTypeEmoji = getFileTypeEmoji(media.fileType);
+    message += `${fileTypeEmoji} ID: ${media.id} - ${media.fileType}\n`;
+  }
+
+  const keyboard = new InlineKeyboard()
+    .text('✏️ 编辑标题/描述', `edit_meta:${collectionId}`).row();
+
+  for (let i = 0; i < collection.mediaFiles.length; i++) {
+    const media = collection.mediaFiles[i];
+    const fileTypeEmoji = getFileTypeEmoji(media.fileType);
+    keyboard.text(`🗑️ ${fileTypeEmoji} ${media.id}`, `delete_media:${media.id}`);
+
+    if (i % 2 === 1 || i === collection.mediaFiles.length - 1) {
+      keyboard.row();
+    }
+  }
+
+  await ctx.reply(message, { reply_markup: keyboard });
+}
 
 // /start 命令
 bot.command('start', async (ctx) => {
@@ -96,7 +153,7 @@ bot.command('start', async (ctx) => {
       await ctx.reply('❌ 部分文件发送失败');
     }
   } else {
-    // 普通访问 - 显示欢迎消息和合集列表
+    // 普通访问 - 显示欢迎消息和命令按钮
     const welcomeMessage = await settingService.getWelcomeMessage();
     const renderedMessage = renderTemplate(welcomeMessage, {
       user_first_name: ctx.from?.first_name || '',
@@ -104,20 +161,24 @@ bot.command('start', async (ctx) => {
       user_username: ctx.from?.username || '',
     });
 
-    await ctx.reply(renderedMessage);
+    // 检查是否为管理员
+    const isAdmin = isUserAdmin(userId);
 
-    // 获取所有合集列表
-    const { collections, total, page, totalPages } = await collectionService.getCollections(1, 10);
+    // 构建命令按钮键盘
+    const keyboard = new InlineKeyboard()
+      .text('📚 查看合集列表', 'cmd:list').row();
 
-    if (collections.length === 0) {
-      await ctx.reply('📭 暂无可访问的合集');
-    } else {
-      const { message, keyboard } = buildCollectionListMessage(collections, total, page, totalPages);
-
-      await ctx.reply(message, {
-        reply_markup: totalPages > 1 ? keyboard : undefined,
-      });
+    if (isAdmin) {
+      keyboard
+        .text('📤 上传文件', 'cmd:upload')
+        .text('📢 发布合集', 'cmd:publish').row()
+        .text('🚀 频道搬运', 'cmd:transfer')
+        .text('✏️ 设置欢迎语', 'cmd:setwelcome').row();
     }
+
+    await ctx.reply(renderedMessage, {
+      reply_markup: keyboard,
+    });
   }
 });
 
@@ -181,38 +242,7 @@ bot.command('edit', adminOnly, async (ctx) => {
   }
 
   // 显示合集信息和文件列表
-  let message = `📝 编辑合集\n\n`;
-  message += `📦 标题：${collection.title}\n`;
-  message += `📝 描述：${collection.description || '无'}\n`;
-  message += `📁 文件数量：${collection.mediaFiles.length}\n\n`;
-  message += `文件列表：\n`;
-
-  for (const media of collection.mediaFiles) {
-    const fileTypeEmoji = media.fileType === 'photo' ? '🖼️' :
-                          media.fileType === 'video' ? '🎥' :
-                          media.fileType === 'audio' ? '🎵' : '📄';
-    message += `${fileTypeEmoji} ID: ${media.id} - ${media.fileType}\n`;
-  }
-
-  // 创建按钮
-  const keyboard = new InlineKeyboard()
-    .text('✏️ 编辑标题/描述', `edit_meta:${collectionId}`).row();
-
-  // 为每个文件添加删除按钮（每行2个按钮）
-  for (let i = 0; i < collection.mediaFiles.length; i++) {
-    const media = collection.mediaFiles[i];
-    const fileTypeEmoji = media.fileType === 'photo' ? '🖼️' :
-                          media.fileType === 'video' ? '🎥' :
-                          media.fileType === 'audio' ? '🎵' : '📄';
-    keyboard.text(`🗑️ ${fileTypeEmoji} ${media.id}`, `delete_media:${media.id}`);
-
-    // 每2个按钮换行
-    if (i % 2 === 1 || i === collection.mediaFiles.length - 1) {
-      keyboard.row();
-    }
-  }
-
-  await ctx.reply(message, { reply_markup: keyboard });
+  await showEditCollectionUI(ctx, collection, collectionId);
 });
 
 // /delete 命令（管理员）
@@ -238,16 +268,40 @@ bot.command('delete', adminOnly, async (ctx) => {
     .text('❌ 取消', `cancel_delete:${collectionId}`);
 
   await ctx.reply(
-    `⚠️ 确认删除合集？\n\n` +
-    `📦 标题：${collection.title}\n` +
-    `📁 文件数量：${collection.mediaFiles.length}\n\n` +
-    `此操作不可撤销！`,
+    buildDeleteConfirmMessage(collection),
     { reply_markup: keyboard }
   );
 });
 
+// /transfer 命令（管理员）
+bot.command('transfer', adminOnly, async (ctx) => {
+  await ctx.conversation.enter('transferFlow');
+});
+
+// /start_transfer_receive 命令（内部使用，由 UserBot 调用，触发 Bot 开启会话）
+bot.command('start_transfer_receive', async (ctx) => {
+  try {
+    // 解析配置参数
+    const configStr = ctx.match?.toString();
+    if (!configStr) {
+      logger.warn('No config provided in start_transfer_receive command');
+      return;
+    }
+
+    const config = JSON.parse(configStr);
+
+    // 将配置保存到 session
+    (ctx.session as any).transferConfig = config;
+
+    logger.info('Received start_transfer_receive command from UserBot, entering transferExecuteFlow conversation');
+    await ctx.conversation.enter('transferExecuteFlow');
+  } catch (error) {
+    logger.error('Failed to enter transferExecuteFlow conversation', error);
+  }
+});
+
 // 辅助函数：构建合集列表消息和键盘
-function buildCollectionListMessage(collections: any[], total: number, page: number, totalPages: number, keyword?: string) {
+function buildCollectionListMessage(collections: any[], total: number, page: number, totalPages: number, keyword?: string, isAdmin: boolean = false) {
   let message = keyword
     ? `🔍 搜索结果：找到 ${total} 个匹配的合集\n\n`
     : `📚 可访问的合集列表（共 ${total} 个）\n\n`;
@@ -262,7 +316,11 @@ function buildCollectionListMessage(collections: any[], total: number, page: num
     }
     message += `   📁 ${fileCount} 个文件\n`;
     message += `   🔗 ${deepLink}\n`;
-    message += `   📅 ${collection.createdAt.toLocaleDateString()}\n\n`;
+    message += `   📅 ${collection.createdAt.toLocaleDateString()}\n`;
+    if (isAdmin) {
+      message += `   🆔 ID: ${collection.id}\n`;
+    }
+    message += `\n`;
   }
 
   message += `\n📄 第 ${page}/${totalPages} 页`;
@@ -278,48 +336,91 @@ function buildCollectionListMessage(collections: any[], total: number, page: num
     keyboard.text('➡️ 下一页', `page:${keyword || ''}:${page + 1}`);
   }
 
+  // 如果是管理员，为每个合集添加编辑和删除按钮
+  if (isAdmin && collections.length > 0) {
+    keyboard.row();
+    for (const collection of collections) {
+      keyboard.text(`✏️ ${collection.title.substring(0, 10)}`, `edit_collection:${collection.id}`);
+      keyboard.text(`🗑️`, `delete_collection:${collection.id}`);
+      keyboard.row();
+    }
+  }
+
   return { message, keyboard };
 }
-
-// 处理普通用户的文本消息 - 搜索合集
-bot.on('message:text', async (ctx) => {
-  const text = ctx.message.text;
-
-  // 忽略命令
-  if (text.startsWith('/')) {
-    return;
-  }
-
-  // 使用关键词搜索合集
-  const keyword = text.trim();
-
-  if (!keyword) {
-    await ctx.reply('请输入关键词来搜索合集');
-    return;
-  }
-
-  try {
-    const { collections, total, page, totalPages } = await collectionService.getCollections(1, 10, { title: keyword });
-
-    if (collections.length === 0) {
-      await ctx.reply(`🔍 未找到包含 "${keyword}" 的合集`);
-      return;
-    }
-
-    const { message, keyboard } = buildCollectionListMessage(collections, total, page, totalPages, keyword);
-
-    await ctx.reply(message, {
-      reply_markup: totalPages > 1 ? keyboard : undefined,
-    });
-  } catch (error) {
-    logger.error('Failed to search collections', error);
-    await ctx.reply('❌ 搜索失败，请稍后重试');
-  }
-});
 
 // 处理翻页回调
 bot.on('callback_query:data', async (ctx) => {
   const data = ctx.callbackQuery.data;
+
+  // 处理命令按钮
+  if (data.startsWith('cmd:')) {
+    const command = data.split(':')[1];
+
+    // 检查是否为管理员
+    const userId = ctx.from?.id;
+    const isAdmin = !!(userId && isUserAdmin(userId));
+
+    switch (command) {
+      case 'list':
+        // 显示合集列表
+        const { collections, total, page, totalPages } = await collectionService.getCollections(1, 10);
+
+        if (collections.length === 0) {
+          await ctx.answerCallbackQuery({ text: '📭 暂无可访问的合集' });
+          return;
+        }
+
+        const { message, keyboard } = buildCollectionListMessage(collections, total, page, totalPages, undefined, isAdmin);
+
+        await ctx.reply(message, {
+          reply_markup: keyboard,
+        });
+
+        await ctx.answerCallbackQuery();
+        break;
+
+      case 'upload':
+        if (!isAdmin) {
+          await ctx.answerCallbackQuery({ text: '❌ 仅管理员可用' });
+          return;
+        }
+        await ctx.answerCallbackQuery();
+        await ctx.conversation.enter('uploadFlow');
+        break;
+
+      case 'publish':
+        if (!isAdmin) {
+          await ctx.answerCallbackQuery({ text: '❌ 仅管理员可用' });
+          return;
+        }
+        await ctx.answerCallbackQuery();
+        await ctx.conversation.enter('publishFlow');
+        break;
+
+      case 'setwelcome':
+        if (!isAdmin) {
+          await ctx.answerCallbackQuery({ text: '❌ 仅管理员可用' });
+          return;
+        }
+        await ctx.answerCallbackQuery();
+        await ctx.conversation.enter('setWelcomeFlow');
+        break;
+
+      case 'transfer':
+        if (!isAdmin) {
+          await ctx.answerCallbackQuery({ text: '❌ 仅管理员可用' });
+          return;
+        }
+        await ctx.answerCallbackQuery();
+        await ctx.conversation.enter('transferFlow');
+        break;
+
+      default:
+        await ctx.answerCallbackQuery({ text: '❌ 未知命令' });
+    }
+    return;
+  }
 
   // 处理翻页
   if (data.startsWith('page:')) {
@@ -337,10 +438,14 @@ bot.on('callback_query:data', async (ctx) => {
         return;
       }
 
-      const { message, keyboard } = buildCollectionListMessage(collections, total, currentPage, totalPages, keyword || undefined);
+      // 检查是否为管理员
+      const userId = ctx.from?.id;
+      const isAdmin = !!(userId && isUserAdmin(userId));
+
+      const { message, keyboard } = buildCollectionListMessage(collections, total, currentPage, totalPages, keyword || undefined, isAdmin);
 
       await ctx.editMessageText(message, {
-        reply_markup: totalPages > 1 ? keyboard : undefined,
+        reply_markup: keyboard,
       });
 
       await ctx.answerCallbackQuery();
@@ -400,38 +505,7 @@ bot.on('callback_query:data', async (ctx) => {
     }
 
     // 显示合集信息和文件列表
-    let message = `📝 编辑合集\n\n`;
-    message += `📦 标题：${collection.title}\n`;
-    message += `📝 描述：${collection.description || '无'}\n`;
-    message += `📁 文件数量：${collection.mediaFiles.length}\n\n`;
-    message += `文件列表：\n`;
-
-    for (const media of collection.mediaFiles) {
-      const fileTypeEmoji = media.fileType === 'photo' ? '🖼️' :
-                            media.fileType === 'video' ? '🎥' :
-                            media.fileType === 'audio' ? '🎵' : '📄';
-      message += `${fileTypeEmoji} ID: ${media.id} - ${media.fileType}\n`;
-    }
-
-    // 创建按钮
-    const keyboard = new InlineKeyboard()
-      .text('✏️ 编辑标题/描述', `edit_meta:${collectionId}`).row();
-
-    // 为每个文件添加删除按钮（每行2个按钮）
-    for (let i = 0; i < collection.mediaFiles.length; i++) {
-      const media = collection.mediaFiles[i];
-      const fileTypeEmoji = media.fileType === 'photo' ? '🖼️' :
-                            media.fileType === 'video' ? '🎥' :
-                            media.fileType === 'audio' ? '🎵' : '📄';
-      keyboard.text(`🗑️ ${fileTypeEmoji} ${media.id}`, `delete_media:${media.id}`);
-
-      // 每2个按钮换行
-      if (i % 2 === 1 || i === collection.mediaFiles.length - 1) {
-        keyboard.row();
-      }
-    }
-
-    await ctx.reply(message, { reply_markup: keyboard });
+    await showEditCollectionUI(ctx, collection, collectionId);
     await ctx.answerCallbackQuery();
     return;
   }
@@ -465,9 +539,7 @@ bot.on('callback_query:data', async (ctx) => {
         .text('✅ 确认删除', `confirm_delete_media:${mediaId}`)
         .text('❌ 取消', `cancel_delete_media:${media.collectionId}`);
 
-      const fileTypeEmoji = media.fileType === 'photo' ? '🖼️' :
-                            media.fileType === 'video' ? '🎥' :
-                            media.fileType === 'audio' ? '🎵' : '📄';
+      const fileTypeEmoji = getFileTypeEmoji(media.fileType);
 
       const confirmMessage =
         `⚠️ 确认删除此文件？\n\n` +
@@ -565,10 +637,7 @@ bot.on('callback_query:data', async (ctx) => {
         .text('❌ 取消', `cancel_delete:${collectionId}`);
 
       await ctx.reply(
-        `⚠️ 确认删除合集？\n\n` +
-        `📦 标题：${collection.title}\n` +
-        `📁 文件数量：${collection.mediaFiles.length}\n\n` +
-        `此操作不可撤销！`,
+        buildDeleteConfirmMessage(collection),
         { reply_markup: keyboard }
       );
 
@@ -589,26 +658,10 @@ bot.catch((err) => {
 // 设置 Bot 命令菜单
 async function setupCommands() {
   try {
-    // 设置普通用户的命令
+    // 所有用户（包括管理员）只显示 start 命令
     await bot.api.setMyCommands([
       { command: 'start', description: '开始使用或访问合集' }
     ]);
-
-    // 设置管理员的命令（需要获取管理员 ID 列表）
-    const adminIds = process.env.ADMIN_IDS?.split(',').map(id => parseInt(id.trim())) || [];
-
-    for (const adminId of adminIds) {
-      await bot.api.setMyCommands(
-        [
-          { command: 'start', description: '开始使用或访问合集' },
-          { command: 'upload', description: '上传媒体文件到合集' },
-          { command: 'display', description: '查看所有合集列表' },
-          { command: 'publish', description: '发布合集' },
-          { command: 'setwelcome', description: '设置欢迎消息' }
-        ],
-        { scope: { type: 'chat', chat_id: adminId } }
-      );
-    }
 
     logger.info('Bot commands menu set successfully');
   } catch (error) {

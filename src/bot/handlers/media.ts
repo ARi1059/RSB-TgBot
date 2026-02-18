@@ -110,9 +110,13 @@ export async function sendMediaFile(ctx: Context, fileId: string, fileType: stri
 /**
  * 以媒体组形式发送媒体文件
  * Telegram 限制每个媒体组最多 10 个文件
+ * 添加速率限制以避免触发 429 Too Many Requests 错误
  */
 export async function sendMediaGroup(ctx: Context, mediaFiles: Array<{ fileId: string; fileType: string }>) {
   const MEDIA_GROUP_LIMIT = 10;
+  const DELAY_BETWEEN_GROUPS = 1000; // 每组之间延迟 1 秒
+  const DELAY_BETWEEN_INDIVIDUAL_FILES = 100; // 单个文件之间延迟 100 毫秒
+  const MAX_RETRIES = 3; // 最大重试次数
 
   // 将文件分组，每组最多 10 个
   for (let i = 0; i < mediaFiles.length; i += MEDIA_GROUP_LIMIT) {
@@ -147,20 +151,45 @@ export async function sendMediaGroup(ctx: Context, mediaFiles: Array<{ fileId: s
 
     // 发送媒体组
     if (mediaGroup.length > 0) {
-      try {
-        await ctx.replyWithMediaGroup(mediaGroup);
-        logger.info(`Sent media group with ${mediaGroup.length} files`);
-      } catch (error) {
-        logger.error(`Failed to send media group`, error);
-        // 如果媒体组发送失败，尝试逐个发送
-        logger.info('Falling back to sending files individually');
-        for (const media of group) {
-          try {
-            await sendMediaFile(ctx, media.fileId, media.fileType);
-          } catch (err) {
-            logger.error(`Failed to send individual file: ${media.fileId}`, err);
+      let retryCount = 0;
+      let success = false;
+
+      while (retryCount < MAX_RETRIES && !success) {
+        try {
+          await ctx.replyWithMediaGroup(mediaGroup);
+          logger.info(`Sent media group with ${mediaGroup.length} files (group ${Math.floor(i / MEDIA_GROUP_LIMIT) + 1})`);
+          success = true;
+        } catch (error: any) {
+          // 检查是否是速率限制错误
+          if (error.error_code === 429) {
+            const retryAfter = error.parameters?.retry_after || 5;
+            logger.warn(`Rate limit hit, waiting ${retryAfter} seconds before retry...`);
+            await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+            retryCount++;
+          } else {
+            logger.error(`Failed to send media group`, error);
+            // 如果不是速率限制错误，尝试逐个发送
+            logger.info('Falling back to sending files individually');
+            for (let j = 0; j < group.length; j++) {
+              const media = group[j];
+              try {
+                await sendMediaFile(ctx, media.fileId, media.fileType);
+                // 单个文件之间也添加延迟
+                if (j < group.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_INDIVIDUAL_FILES));
+                }
+              } catch (err) {
+                logger.error(`Failed to send individual file: ${media.fileId}`, err);
+              }
+            }
+            success = true; // 标记为成功以跳出重试循环
           }
         }
+      }
+
+      // 如果不是最后一组，添加延迟
+      if (i + MEDIA_GROUP_LIMIT < mediaFiles.length) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_GROUPS));
       }
     }
   }
