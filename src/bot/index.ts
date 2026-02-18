@@ -166,7 +166,7 @@ bot.command('start', async (ctx) => {
     if (isAdmin) {
       keyboard
         .text('📤 上传文件', 'cmd:upload')
-        .text('📢 发布合集', 'cmd:publish').row()
+        .text('📢 广播消息', 'cmd:publish').row()
         .text('🚀 频道搬运', 'cmd:transfer')
         .text('✏️ 设置欢迎语', 'cmd:setwelcome').row();
     }
@@ -202,9 +202,7 @@ bot.command('display', adminOnly, async (ctx) => {
     message += `   ID: ${collection.id}\n\n`;
   }
 
-  message += `第 ${page}/${totalPages} 页\n\n`;
-  message += `💡 使用 /edit <ID> 编辑合集\n`;
-  message += `💡 使用 /delete <ID> 删除合集`;
+  message += `第 ${page}/${totalPages} 页`;
 
   await ctx.reply(message);
 });
@@ -655,7 +653,7 @@ async function setupCommands() {
   try {
     // 所有用户（包括管理员）只显示 start 命令
     await bot.api.setMyCommands([
-      { command: 'start', description: '开始使用或访问合集' }
+      { command: 'start', description: '开始使用' }
     ]);
 
     logger.info('Bot commands menu set successfully');
