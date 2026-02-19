@@ -2,6 +2,7 @@ import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
 import { Context, InlineKeyboard } from 'grammy';
 import { createLogger } from '../../utils/logger';
 import permissionService from '../../services/permission';
+import { KeyboardFactory } from '../ui';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -46,8 +47,7 @@ export async function adminManageFlow(conversation: MyConversation, ctx: MyConte
   await actionResponse.answerCallbackQuery();
 
   // 请求输入用户ID
-  const inputKeyboard = new InlineKeyboard()
-    .text('❌ 取消', 'admin_cancel');
+  const inputKeyboard = KeyboardFactory.createCancelKeyboard('admin_cancel');
 
   await ctx.reply(
     `${action === 'add' ? '➕ 添加管理员' : '➖ 删除管理员'}\n\n` +

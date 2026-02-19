@@ -1,7 +1,8 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
-import { Context, InlineKeyboard } from 'grammy';
+import { Context } from 'grammy';
 import settingService from '../../services/setting';
 import { createLogger } from '../../utils/logger';
+import { KeyboardFactory } from '../ui';
 
 const logger = createLogger('SetWelcomeFlow');
 
@@ -12,8 +13,7 @@ type MyConversation = Conversation<MyContext>;
  * 设置欢迎消息会话流程
  */
 export async function setWelcomeFlow(conversation: MyConversation, ctx: MyContext) {
-  const cancelKeyboard = new InlineKeyboard()
-    .text('❌ 取消', 'welcome_cancel');
+  const cancelKeyboard = KeyboardFactory.createCancelKeyboard('welcome_cancel');
 
   await ctx.reply(
     '📝 设置欢迎消息\n\n' +

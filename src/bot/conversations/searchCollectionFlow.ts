@@ -1,7 +1,8 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
-import { Context, InlineKeyboard } from 'grammy';
+import { Context } from 'grammy';
 import collectionService from '../../services/collection';
 import { createLogger } from '../../utils/logger';
+import { KeyboardFactory } from '../ui';
 
 const logger = createLogger('SearchCollectionFlow');
 
@@ -12,8 +13,7 @@ type MyConversation = Conversation<MyContext>;
  * 搜索合集流程会话
  */
 export async function searchCollectionFlow(conversation: MyConversation, ctx: MyContext) {
-  const cancelKeyboard = new InlineKeyboard()
-    .text('❌ 取消', 'search_cancel');
+  const cancelKeyboard = KeyboardFactory.createCancelKeyboard('search_cancel');
 
   await ctx.reply(
     '🔍 搜索合集\n\n' +
@@ -73,12 +73,13 @@ export async function searchCollectionFlow(conversation: MyConversation, ctx: My
 
     message += `\n📄 第 ${page}/${totalPages} 页`;
 
-    // 构建翻页键盘
-    const keyboard = new InlineKeyboard();
-
-    if (page < totalPages) {
-      keyboard.text('➡️ 下一页', `search_page:${keyword}:${page + 1}`);
-    }
+    // 使用 KeyboardFactory 构建翻页键盘
+    const keyboard = KeyboardFactory.createPaginationKeyboard({
+      currentPage: page,
+      totalPages,
+      prefix: 'search_page',
+      keyword
+    });
 
     await ctx.reply(message, {
       reply_markup: keyboard.inline_keyboard.length > 0 ? keyboard : undefined,

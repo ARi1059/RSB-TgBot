@@ -1,8 +1,9 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
-import { Context, InlineKeyboard } from 'grammy';
+import { Context } from 'grammy';
 import collectionService from '../../services/collection';
 import mediaService from '../../services/media';
 import { createLogger } from '../../utils/logger';
+import { KeyboardFactory } from '../ui';
 
 const logger = createLogger('EditCollectionFlow');
 
@@ -30,9 +31,7 @@ export async function editCollectionFlow(conversation: MyConversation, ctx: MyCo
 
   const originalTitle = originalCollection.title;
 
-  const titleKeyboard = new InlineKeyboard()
-    .text('⏭️ 跳过', 'edit_skip')
-    .text('❌ 取消', 'edit_cancel');
+  const titleKeyboard = KeyboardFactory.createSkipCancelKeyboard('edit_skip', 'edit_cancel');
 
   await ctx.reply(
     `📝 编辑合集\n\n` +
@@ -66,9 +65,7 @@ export async function editCollectionFlow(conversation: MyConversation, ctx: MyCo
   }
 
   // 获取新描述
-  const descKeyboard = new InlineKeyboard()
-    .text('⏭️ 跳过', 'edit_skip')
-    .text('❌ 取消', 'edit_cancel');
+  const descKeyboard = KeyboardFactory.createSkipCancelKeyboard('edit_skip', 'edit_cancel');
 
   await ctx.reply('📝 请输入新的描述：', { reply_markup: descKeyboard });
   const descResponse = await conversation.wait();

@@ -1,8 +1,9 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
-import { Context, InlineKeyboard } from 'grammy';
+import { Context } from 'grammy';
 import userService from '../../services/user';
 import { renderTemplate } from '../../utils/template';
 import { createLogger } from '../../utils/logger';
+import { KeyboardFactory } from '../ui';
 
 const logger = createLogger('PublishFlow');
 
@@ -13,8 +14,7 @@ type MyConversation = Conversation<MyContext>;
  * 全员推送流程
  */
 export async function publishFlow(conversation: MyConversation, ctx: MyContext) {
-  const cancelKeyboard = new InlineKeyboard()
-    .text('❌ 取消', 'publish_cancel');
+  const cancelKeyboard = KeyboardFactory.createCancelKeyboard('publish_cancel');
 
   await ctx.reply(
     '📢 全员推送\n\n' +
@@ -41,9 +41,7 @@ export async function publishFlow(conversation: MyConversation, ctx: MyContext) 
   }
 
   // 确认推送
-  const confirmKeyboard = new InlineKeyboard()
-    .text('✅ 确认推送', 'publish_confirm')
-    .text('❌ 取消', 'publish_cancel');
+  const confirmKeyboard = KeyboardFactory.createConfirmKeyboard('publish_confirm', 'publish_cancel');
 
   await ctx.reply(
     `📋 预览消息：\n\n${messageContent}\n\n` +

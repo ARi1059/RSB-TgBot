@@ -1,5 +1,6 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
 import { Context, InlineKeyboard } from 'grammy';
+import { KeyboardFactory } from '../ui';
 import { createLogger } from '../../utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -45,8 +46,7 @@ export async function contactManageFlow(conversation: MyConversation, ctx: MyCon
   await actionResponse.answerCallbackQuery();
 
   // 请求输入联系人用户名
-  const inputKeyboard = new InlineKeyboard()
-    .text('❌ 取消', 'contact_cancel');
+  const inputKeyboard = KeyboardFactory.createCancelKeyboard('contact_cancel');
 
   await ctx.reply(
     `${action === 'edit' ? '✏️ 修改联系人' : '➕ 新增联系人'}\n\n` +

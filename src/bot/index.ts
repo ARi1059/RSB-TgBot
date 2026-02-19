@@ -9,6 +9,7 @@ import permissionService from '../services/permission';
 import { CALLBACKS, MESSAGES } from '../constants';
 import { setupSession, MyContext } from './middlewares/session';
 import { adminOnly } from './middlewares/auth';
+import { createDeduplicationMiddleware } from './middlewares/deduplication';
 import userService from '../services/user';
 import settingService from '../services/setting';
 import collectionService from '../services/collection';
@@ -25,6 +26,7 @@ import { contactManageFlow } from './conversations/contactManageFlow';
 import { userManageFlow } from './conversations/userManageFlow';
 import { sendMediaGroup } from './handlers/media';
 import mediaService from '../services/media';
+import { KeyboardFactory, CollectionMessageBuilder, TextFormatter } from './ui';
 
 // 加载环境变量
 config();
@@ -60,6 +62,9 @@ const bot = new Bot<MyContext>(Config.BOT_TOKEN, botConfig);
 // 配置会话
 setupSession(bot);
 
+// 添加请求去重中间件
+bot.use(createDeduplicationMiddleware(1000, 1));
+
 // 注册会话流程
 bot.use(createConversation(uploadFlow));
 bot.use(createConversation(publishFlow));
@@ -72,6 +77,13 @@ bot.use(createConversation(adminManageFlow));
 bot.use(createConversation(contactManageFlow));
 bot.use(createConversation(userManageFlow));
 
+// 工具函数：显示编辑合集界面
+async function showEditCollectionUI(ctx: any, collection: any, collectionId: number) {
+  const message = CollectionMessageBuilder.buildEditMessage(collection);
+  const keyboard = KeyboardFactory.createEditCollectionKeyboard(collectionId, collection.mediaFiles);
+  await ctx.reply(message, { reply_markup: keyboard });
+}
+
 // 工具函数：获取文件类型对应的 emoji
 function getFileTypeEmoji(fileType: string): string {
   switch (fileType) {
@@ -80,38 +92,6 @@ function getFileTypeEmoji(fileType: string): string {
     case 'audio': return '🎵';
     default: return '📄';
   }
-}
-
-// 工具函数：构建删除合集确认消息
-function buildDeleteConfirmMessage(collection: any): string {
-  return `⚠️ 确认删除合集？\n\n` +
-    `📦 标题：${collection.title}\n` +
-    `📁 文件数量：${collection.mediaFiles.length}\n\n` +
-    `此操作不可撤销！`;
-}
-
-// 工具函数：显示编辑合集界面
-async function showEditCollectionUI(ctx: any, collection: any, collectionId: number) {
-  let message = `📝 编辑合集\n\n`;
-  message += `📦 标题：${collection.title}\n`;
-  message += `📝 描述：${collection.description || '无'}\n`;
-  message += `📁 文件数量：${collection.mediaFiles.length}\n`;
-
-  const keyboard = new InlineKeyboard()
-    .text('✏️ 编辑标题/描述', `edit_meta:${collectionId}`).row();
-
-  // 为每个文件添加删除按钮（每行2个按钮）
-  for (let i = 0; i < collection.mediaFiles.length; i++) {
-    const media = collection.mediaFiles[i];
-    const fileTypeEmoji = getFileTypeEmoji(media.fileType);
-    keyboard.text(`🗑️ ${fileTypeEmoji} ${media.id}`, `delete_media:${media.id}`);
-
-    if (i % 2 === 1 || i === collection.mediaFiles.length - 1) {
-      keyboard.row();
-    }
-  }
-
-  await ctx.reply(message, { reply_markup: keyboard });
 }
 
 // /start 命令
@@ -258,21 +238,8 @@ bot.command('start', async (ctx) => {
     // 检查是否为管理员
     const isAdmin = permissionService.isAdmin(userId);
 
-    // 构建命令按钮键盘
-    const keyboard = new InlineKeyboard()
-      .text('📚 查看合集列表', 'cmd:list')
-      .text('🔍 搜索合集', 'cmd:search').row();
-
-    if (isAdmin) {
-      keyboard
-        .text('📤 上传文件', 'cmd:upload')
-        .text('📢 广播消息', 'cmd:publish').row()
-        .text('🚀 频道搬运', 'cmd:transfer')
-        .text('✏️ 设置欢迎语', 'cmd:setwelcome').row()
-        .text('👥 管理员管理', 'cmd:admin_manage')
-        .text('📞 联系人管理', 'cmd:contact_manage').row()
-        .text('👤 用户管理', 'cmd:user_manage');
-    }
+    // 使用 KeyboardFactory 构建主菜单
+    const keyboard = KeyboardFactory.createMainMenuKeyboard(isAdmin);
 
     await ctx.reply(renderedMessage, {
       reply_markup: keyboard,
@@ -359,12 +326,13 @@ bot.command('delete', adminOnly, async (ctx) => {
   }
 
   // 请求确认
-  const keyboard = new InlineKeyboard()
-    .text('✅ 确认删除', `confirm_delete:${collectionId}`)
-    .text('❌ 取消', `cancel_delete:${collectionId}`);
+  const keyboard = KeyboardFactory.createConfirmKeyboard(
+    `confirm_delete:${collectionId}`,
+    `cancel_delete:${collectionId}`
+  );
 
   await ctx.reply(
-    buildDeleteConfirmMessage(collection),
+    CollectionMessageBuilder.buildDeleteConfirmMessage(collection),
     { reply_markup: keyboard }
   );
 });
@@ -398,53 +366,23 @@ bot.command('start_transfer_receive', async (ctx) => {
 
 // 辅助函数：构建合集列表消息和键盘
 function buildCollectionListMessage(collections: any[], total: number, page: number, totalPages: number, keyword?: string, isAdmin: boolean = false) {
-  let message = keyword
-    ? `🔍 搜索结果：找到 ${total} 个匹配的合集\n\n`
-    : `📚 可访问的合集列表（共 ${total} 个）\n\n`;
-
-  for (const collection of collections) {
-    const deepLink = `https://t.me/${Config.BOT_USERNAME}?start=${collection.token}`;
-
-    // 统计视频和图片数量
-    const photoCount = collection.mediaFiles?.filter((f: any) => f.fileType === 'photo').length || 0;
-    const videoCount = collection.mediaFiles?.filter((f: any) => f.fileType === 'video').length || 0;
-
-    // 标题
-    message += `📦 ${collection.title}\n`;
-
-    // 描述（如果有）
-    if (collection.description) {
-      message += `📝 ${collection.description}\n`;
-    }
-
-    // 文件数统计（为0的不展示）
-    const fileCounts = [];
-    if (videoCount > 0) {
-      fileCounts.push(`🎥 ${videoCount}个视频`);
-    }
-    if (photoCount > 0) {
-      fileCounts.push(`🖼️ ${photoCount}张图片`);
-    }
-    if (fileCounts.length > 0) {
-      message += `📁 ${fileCounts.join(' | ')}\n`;
-    }
-
-    // 深链接（空一行展示）
-    message += `\n🔗 ${deepLink}\n\n`;
-  }
-
-  message += `📄 第 ${page}/${totalPages} 页`;
+  // 使用 CollectionMessageBuilder 构建消息
+  const message = CollectionMessageBuilder.buildListMessage({
+    collections,
+    total,
+    page,
+    totalPages,
+    keyword,
+    isAdmin
+  });
 
   // 构建翻页键盘
-  const keyboard = new InlineKeyboard();
-
-  if (page > 1) {
-    keyboard.text('⬅️ 上一页', `page:${keyword || ''}:${page - 1}`);
-  }
-
-  if (page < totalPages) {
-    keyboard.text('➡️ 下一页', `page:${keyword || ''}:${page + 1}`);
-  }
+  const keyboard = KeyboardFactory.createPaginationKeyboard({
+    currentPage: page,
+    totalPages,
+    prefix: 'page',
+    keyword
+  });
 
   // 如果是管理员，为每个合集添加编辑和删除按钮
   if (isAdmin && collections.length > 0) {
@@ -636,16 +574,13 @@ bot.on('callback_query:data', async (ctx) => {
 
       message += `\n📄 第 ${currentPage}/${totalPages} 页`;
 
-      // 构建翻页键盘
-      const keyboard = new InlineKeyboard();
-
-      if (currentPage > 1) {
-        keyboard.text('⬅️ 上一页', `search_page:${keyword}:${currentPage - 1}`);
-      }
-
-      if (currentPage < totalPages) {
-        keyboard.text('➡️ 下一页', `search_page:${keyword}:${currentPage + 1}`);
-      }
+      // 使用 KeyboardFactory 构建翻页键盘
+      const keyboard = KeyboardFactory.createPaginationKeyboard({
+        currentPage,
+        totalPages,
+        prefix: 'search_page',
+        keyword
+      });
 
       await ctx.editMessageText(message, {
         reply_markup: keyboard.inline_keyboard.length > 0 ? keyboard : undefined,
@@ -750,10 +685,11 @@ bot.on('callback_query:data', async (ctx) => {
         return;
       }
 
-      // 请求确认
-      const keyboard = new InlineKeyboard()
-        .text('✅ 确认删除', `confirm_delete_media:${mediaId}`)
-        .text('❌ 取消', `cancel_delete_media:${media.collectionId}`);
+      // 使用 KeyboardFactory 创建确认键盘
+      const keyboard = KeyboardFactory.createConfirmKeyboard(
+        `confirm_delete_media:${mediaId}`,
+        `cancel_delete_media:${media.collectionId}`
+      );
 
       const fileTypeEmoji = getFileTypeEmoji(media.fileType);
 
@@ -855,12 +791,13 @@ bot.on('callback_query:data', async (ctx) => {
       }
 
       // 请求确认
-      const keyboard = new InlineKeyboard()
-        .text('✅ 确认删除', `confirm_delete:${collectionId}`)
-        .text('❌ 取消', `cancel_delete:${collectionId}`);
+      const keyboard = KeyboardFactory.createConfirmKeyboard(
+        `confirm_delete:${collectionId}`,
+        `cancel_delete:${collectionId}`
+      );
 
       await ctx.reply(
-        buildDeleteConfirmMessage(collection),
+        CollectionMessageBuilder.buildDeleteConfirmMessage(collection),
         { reply_markup: keyboard }
       );
 

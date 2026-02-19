@@ -3,6 +3,7 @@ import { Context, InlineKeyboard } from 'grammy';
 import { createLogger } from '../../utils/logger';
 import prisma from '../../database/client';
 import { UserLevel } from '../../utils/permissions';
+import { KeyboardFactory } from '../ui';
 
 const logger = createLogger('UserManageFlow');
 
@@ -14,8 +15,7 @@ type MyConversation = Conversation<MyContext>;
  */
 export async function userManageFlow(conversation: MyConversation, ctx: MyContext) {
   // 请求输入用户名
-  const inputKeyboard = new InlineKeyboard()
-    .text('❌ 取消', 'user_cancel');
+  const inputKeyboard = KeyboardFactory.createCancelKeyboard('user_cancel');
 
   await ctx.reply(
     '👤 用户管理\n\n' +

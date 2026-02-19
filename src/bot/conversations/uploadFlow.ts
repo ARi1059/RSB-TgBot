@@ -5,6 +5,7 @@ import collectionService from '../../services/collection';
 import userService from '../../services/user';
 import { publishToChannels } from '../../services/channelPublisher';
 import { createLogger } from '../../utils/logger';
+import { KeyboardFactory } from '../ui';
 
 const logger = createLogger('UploadFlow');
 
@@ -92,8 +93,7 @@ export async function uploadFlow(conversation: MyConversation, ctx: MyContext) {
   }
 
   // 请求标题
-  const titleKeyboard = new InlineKeyboard()
-    .text('❌ 取消', 'upload_cancel');
+  const titleKeyboard = KeyboardFactory.createCancelKeyboard('upload_cancel');
 
   await ctx.reply('📝 请输入合集标题：', { reply_markup: titleKeyboard });
   const titleResponse = await conversation.wait();
@@ -113,9 +113,7 @@ export async function uploadFlow(conversation: MyConversation, ctx: MyContext) {
   }
 
   // 请求描述
-  const descKeyboard = new InlineKeyboard()
-    .text('⏭️ 跳过', 'upload_skip')
-    .text('❌ 取消', 'upload_cancel');
+  const descKeyboard = KeyboardFactory.createSkipCancelKeyboard('upload_skip', 'upload_cancel');
 
   await ctx.reply('📝 请输入合集描述（可选）：', { reply_markup: descKeyboard });
   const descResponse = await conversation.wait();
