@@ -4,6 +4,7 @@ import { executeWithErrorHandling } from '../utils/errorHandler';
 import { UserLevel, PermissionLevel, getMaxAccessiblePermission } from '../utils/permissions';
 import { createLogger } from '../utils/logger';
 import { createCache } from '../utils/cache';
+import { CollectionWithMedia, CollectionWithMediaAndCreator, CollectionListResponse, CollectionFilters } from '../types/collection';
 
 const logger = createLogger('CollectionService');
 
@@ -29,15 +30,24 @@ export class CollectionService {
     permissionLevel?: PermissionLevel;
   }) {
     return executeWithErrorHandling('CollectionService', 'createCollection', async () => {
-      // 生成唯一 token
+      // 生成唯一 token（添加最大重试次数保护）
       let token = generateToken();
       let exists = await prisma.collection.findUnique({ where: { token } });
+      let retries = 0;
+      const MAX_RETRIES = 10;
 
-      // 如果 token 冲突，重新生成
-      while (exists) {
-        logger.warn(`Token collision detected: ${token}, regenerating...`);
+      // 如果 token 冲突，重新生成（最多重试 10 次）
+      while (exists && retries < MAX_RETRIES) {
+        logger.warn(`Token collision detected: ${token}, regenerating... (attempt ${retries + 1}/${MAX_RETRIES})`);
         token = generateToken();
         exists = await prisma.collection.findUnique({ where: { token } });
+        retries++;
+      }
+
+      // 如果达到最大重试次数仍然冲突，抛出错误
+      if (retries >= MAX_RETRIES) {
+        logger.error(`Failed to generate unique token after ${MAX_RETRIES} attempts`);
+        throw new Error('Failed to generate unique token after maximum retries');
       }
 
       const collection = await prisma.collection.create({
@@ -56,7 +66,7 @@ export class CollectionService {
   /**
    * 根据 token 获取合集（带权限过滤和缓存）
    */
-  async getCollectionByToken(token: string, userLevel: UserLevel = UserLevel.NORMAL) {
+  async getCollectionByToken(token: string, userLevel: UserLevel = UserLevel.NORMAL): Promise<CollectionWithMediaAndCreator | null> {
     return executeWithErrorHandling('CollectionService', 'getCollectionByToken', async () => {
       // 尝试从缓存获取
       const cacheKey = `collection:token:${token}:level:${userLevel}`;
@@ -103,7 +113,7 @@ export class CollectionService {
   /**
    * 根据 ID 获取合集（带权限过滤）
    */
-  async getCollectionById(id: number, userLevel: UserLevel = UserLevel.NORMAL) {
+  async getCollectionById(id: number, userLevel: UserLevel = UserLevel.NORMAL): Promise<CollectionWithMediaAndCreator | null> {
     return executeWithErrorHandling('CollectionService', 'getCollectionById', async () => {
       const collection = await prisma.collection.findUnique({
         where: { id },
@@ -139,7 +149,7 @@ export class CollectionService {
   /**
    * 根据标题获取合集
    */
-  async getCollectionByTitle(title: string, creatorId: number) {
+  async getCollectionByTitle(title: string, creatorId: number): Promise<CollectionWithMedia | null> {
     return executeWithErrorHandling('CollectionService', 'getCollectionByTitle', async () => {
       const collection = await prisma.collection.findFirst({
         where: {
@@ -160,10 +170,11 @@ export class CollectionService {
   /**
    * 获取所有合集（分页，不过滤权限）
    */
-  async getCollections(page: number = 1, limit: number = 10, filters?: {
-    title?: string;
-    creatorId?: number;
-  }) {
+  async getCollections(
+    page: number = 1,
+    limit: number = 10,
+    filters?: CollectionFilters
+  ): Promise<CollectionListResponse> {
     return executeWithErrorHandling('CollectionService', 'getCollections', async () => {
       const skip = (page - 1) * limit;
 
@@ -253,6 +264,13 @@ export class CollectionService {
       collectionCache.delete(cacheKey);
     }
     logger.debug(`Cache cleared for collection token: ${token}`);
+  }
+
+  /**
+   * 停止缓存清理定时器
+   */
+  stopCleanup(): void {
+    collectionCache.stopCleanup();
   }
 }
 

@@ -1,5 +1,7 @@
 import { InlineKeyboard } from 'grammy';
 import { Config } from '../../../config';
+import { CollectionWithMedia, CollectionListItem } from '../../../types/collection';
+import { MediaFile } from '@prisma/client';
 
 /**
  * 合集消息构建器
@@ -10,7 +12,7 @@ export class CollectionMessageBuilder {
    * 构建合集列表消息
    */
   static buildListMessage(options: {
-    collections: any[];
+    collections: CollectionListItem[];
     total: number;
     page: number;
     totalPages: number;
@@ -35,12 +37,11 @@ export class CollectionMessageBuilder {
   /**
    * 构建单个合集项
    */
-  static buildCollectionItem(collection: any): string {
+  static buildCollectionItem(collection: CollectionListItem): string {
     const deepLink = `https://t.me/${Config.BOT_USERNAME}?start=${collection.token}`;
 
-    // 统计视频和图片数量
-    const photoCount = collection.mediaFiles?.filter((f: any) => f.fileType === 'photo').length || 0;
-    const videoCount = collection.mediaFiles?.filter((f: any) => f.fileType === 'video').length || 0;
+    // 使用 _count 统计
+    const fileCount = collection._count.mediaFiles;
 
     // 标题
     let item = `📦 ${collection.title}\n`;
@@ -50,16 +51,9 @@ export class CollectionMessageBuilder {
       item += `📝 ${collection.description}\n`;
     }
 
-    // 文件数统计（为0的不展示）
-    const fileCounts = [];
-    if (videoCount > 0) {
-      fileCounts.push(`🎥 ${videoCount}个视频`);
-    }
-    if (photoCount > 0) {
-      fileCounts.push(`🖼️ ${photoCount}张图片`);
-    }
-    if (fileCounts.length > 0) {
-      item += `📁 ${fileCounts.join(' | ')}\n`;
+    // 文件数统计
+    if (fileCount > 0) {
+      item += `📁 ${fileCount} 个文件\n`;
     }
 
     // 深链接（空一行展示）
@@ -71,9 +65,9 @@ export class CollectionMessageBuilder {
   /**
    * 构建合集详情消息
    */
-  static buildDetailMessage(collection: any, userLevel: number): string {
-    const accessiblePhotos = collection.mediaFiles.filter((f: any) => f.fileType === 'photo').length;
-    const accessibleVideos = collection.mediaFiles.filter((f: any) => f.fileType === 'video').length;
+  static buildDetailMessage(collection: CollectionWithMedia, userLevel: number): string {
+    const accessiblePhotos = collection.mediaFiles.filter((f: MediaFile) => f.fileType === 'photo').length;
+    const accessibleVideos = collection.mediaFiles.filter((f: MediaFile) => f.fileType === 'video').length;
 
     let message = `📦 ${collection.title}\n\n`;
 
@@ -109,7 +103,7 @@ export class CollectionMessageBuilder {
   /**
    * 构建删除确认消息
    */
-  static buildDeleteConfirmMessage(collection: any): string {
+  static buildDeleteConfirmMessage(collection: CollectionWithMedia): string {
     return `⚠️ 确认删除合集？\n\n` +
       `📦 标题：${collection.title}\n` +
       `📁 文件数量：${collection.mediaFiles.length}\n\n` +
@@ -119,7 +113,7 @@ export class CollectionMessageBuilder {
   /**
    * 构建编辑合集消息
    */
-  static buildEditMessage(collection: any): string {
+  static buildEditMessage(collection: CollectionWithMedia): string {
     let message = `📝 编辑合集\n\n`;
     message += `📦 标题：${collection.title}\n`;
     message += `📝 描述：${collection.description || '无'}\n`;
