@@ -49,7 +49,7 @@ const loggerCache = new Map<string, Logger>();
  */
 export function createLogger(prefix: string): Logger {
   if (!loggerCache.has(prefix)) {
-    loggerCache.set(prefix, createLogger(prefix));
+    loggerCache.set(prefix, new Logger(prefix));
   }
   return loggerCache.get(prefix)!;
 }

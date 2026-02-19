@@ -99,24 +99,6 @@ export const MESSAGES = {
 } as const;
 
 /**
- * 权限等级常量
- */
-export const PERMISSION_LEVELS = {
-  NORMAL: 0,
-  PAID: 1,
-  VIP: 2,
-} as const;
-
-/**
- * 权限等级显示名称
- */
-export const PERMISSION_LEVEL_NAMES = {
-  [PERMISSION_LEVELS.NORMAL]: '普通用户',
-  [PERMISSION_LEVELS.PAID]: '付费用户',
-  [PERMISSION_LEVELS.VIP]: 'VIP用户',
-} as const;
-
-/**
  * 分页配置
  */
 export const PAGINATION = {
@@ -133,3 +115,10 @@ export const RATE_LIMIT = {
   MEDIA_SEND_RETRY_DELAY: 2000, // 毫秒
   MAX_RETRIES: 3,
 } as const;
+
+/**
+ * 注意：权限等级定义已统一到 utils/permissions.ts
+ * 请使用 UserLevel 和 PermissionLevel 枚举
+ *
+ * import { UserLevel, PermissionLevel } from '../utils/permissions';
+ */
