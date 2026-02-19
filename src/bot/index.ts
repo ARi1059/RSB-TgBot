@@ -19,6 +19,7 @@ import { transferExecuteFlow } from './conversations/transferExecuteFlow';
 import { searchCollectionFlow } from './conversations/searchCollectionFlow';
 import { adminManageFlow } from './conversations/adminManageFlow';
 import { contactManageFlow } from './conversations/contactManageFlow';
+import { userManageFlow } from './conversations/userManageFlow';
 import { sendMediaGroup } from './handlers/media';
 import mediaService from '../services/media';
 
@@ -58,6 +59,7 @@ bot.use(createConversation(transferExecuteFlow));
 bot.use(createConversation(searchCollectionFlow));
 bot.use(createConversation(adminManageFlow));
 bot.use(createConversation(contactManageFlow));
+bot.use(createConversation(userManageFlow));
 
 // 工具函数：获取文件类型对应的 emoji
 function getFileTypeEmoji(fileType: string): string {
@@ -263,7 +265,8 @@ bot.command('start', async (ctx) => {
         .text('🚀 频道搬运', 'cmd:transfer')
         .text('✏️ 设置欢迎语', 'cmd:setwelcome').row()
         .text('👥 管理员管理', 'cmd:admin_manage')
-        .text('📞 联系人管理', 'cmd:contact_manage');
+        .text('📞 联系人管理', 'cmd:contact_manage').row()
+        .text('👤 用户管理', 'cmd:user_manage');
     }
 
     await ctx.reply(renderedMessage, {
@@ -539,6 +542,15 @@ bot.on('callback_query:data', async (ctx) => {
         }
         await ctx.answerCallbackQuery();
         await ctx.conversation.enter('contactManageFlow');
+        break;
+
+      case 'user_manage':
+        if (!isAdmin) {
+          await ctx.answerCallbackQuery({ text: '❌ 仅管理员可用' });
+          return;
+        }
+        await ctx.answerCallbackQuery();
+        await ctx.conversation.enter('userManageFlow');
         break;
 
       default:

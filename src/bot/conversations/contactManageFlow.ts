@@ -126,9 +126,11 @@ export async function contactManageFlow(conversation: MyConversation, ctx: MyCon
       process.env.ADMIN_CONTACT = newContact;
 
       await ctx.reply(
-        `✅ 联系人修改成功！\n\n` +
+        `✅ 联系人修改成功！权限已立即生效\n\n` +
         `新联系人：${newContact}\n\n` +
-        `⚠️ 注意：需要重启 Bot 才能完全生效`
+        `💡 提示：\n` +
+        `- 新的联系人配置已生效，可以立即使用\n` +
+        `- .env 文件已更新，重启后配置将持久化`
       );
 
       logger.info(`Admin contact updated: ${newContact}`);
@@ -152,9 +154,11 @@ export async function contactManageFlow(conversation: MyConversation, ctx: MyCon
       process.env.ADMIN_CONTACT = newContact;
 
       await ctx.reply(
-        `✅ 联系人添加成功！\n\n` +
+        `✅ 联系人添加成功！权限已立即生效\n\n` +
         `联系人：${newContact}\n\n` +
-        `⚠️ 注意：需要重启 Bot 才能完全生效`
+        `💡 提示：\n` +
+        `- 新的联系人配置已生效，可以立即使用\n` +
+        `- .env 文件已更新，重启后配置将持久化`
       );
 
       logger.info(`Admin contact added: ${newContact}`);

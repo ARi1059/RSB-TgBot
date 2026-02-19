@@ -121,10 +121,12 @@ export async function adminManageFlow(conversation: MyConversation, ctx: MyConte
       process.env.ADMIN_IDS = adminIds.join(',');
 
       await ctx.reply(
-        `✅ 添加成功！\n\n` +
+        `✅ 添加成功！权限已立即生效\n\n` +
         `用户ID：${userId}\n\n` +
         `当前管理员列表：\n${adminIds.join('\n')}\n\n` +
-        `⚠️ 注意：需要重启 Bot 才能完全生效`
+        `💡 提示：\n` +
+        `- 新的权限配置已生效，可以立即使用\n` +
+        `- .env 文件已更新，重启后配置将持久化`
       );
 
       logger.info(`Admin added: ${userId}`);
@@ -150,10 +152,12 @@ export async function adminManageFlow(conversation: MyConversation, ctx: MyConte
       process.env.ADMIN_IDS = adminIds.join(',');
 
       await ctx.reply(
-        `✅ 删除成功！\n\n` +
+        `✅ 删除成功！权限已立即生效\n\n` +
         `用户ID：${userId}\n\n` +
         `当前管理员列表：\n${adminIds.join('\n')}\n\n` +
-        `⚠️ 注意：需要重启 Bot 才能完全生效`
+        `💡 提示：\n` +
+        `- 新的权限配置已生效，可以立即使用\n` +
+        `- .env 文件已更新，重启后配置将持久化`
       );
 
       logger.info(`Admin removed: ${userId}`);
