@@ -16,6 +16,8 @@ interface TransferConfig {
   };
   contentType: ('photo' | 'video')[];
   keyword: string;
+  title: string;
+  description?: string;
 }
 
 /**
@@ -27,7 +29,8 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
   // 步骤 1: 选择搬运模式
   const modeKeyboard = new InlineKeyboard()
     .text('📚 全频道搬运', 'transfer_mode:all')
-    .text('📅 按日期搬运', 'transfer_mode:date_range');
+    .text('📅 按日期搬运', 'transfer_mode:date_range').row()
+    .text('❌ 取消', 'transfer_cancel');
 
   await ctx.reply(
     '🚀 频道搬运工具\n\n' +
@@ -42,18 +45,36 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
     return;
   }
 
+  if (modeResponse.callbackQuery.data === 'transfer_cancel') {
+    await modeResponse.answerCallbackQuery({ text: '已取消' });
+    await ctx.reply('❌ 操作已取消');
+    return;
+  }
+
   const mode = modeResponse.callbackQuery.data.split(':')[1] as 'all' | 'date_range';
   config.mode = mode;
   await modeResponse.answerCallbackQuery();
 
   // 步骤 2: 输入目标频道
+  const channelKeyboard = new InlineKeyboard()
+    .text('❌ 取消', 'transfer_cancel');
+
   await ctx.reply(
     `${mode === 'all' ? '📚 全频道搬运' : '📅 按日期搬运'}\n\n` +
     '请输入目标频道链接\n' +
-    '格式：@channel_name 或 https://t.me/channel_name'
+    '格式：@channel_name 或 https://t.me/channel_name',
+    { reply_markup: channelKeyboard }
   );
 
   const channelResponse = await conversation.wait();
+
+  // 检查是否点击了取消按钮
+  if (channelResponse.callbackQuery?.data === 'transfer_cancel') {
+    await channelResponse.answerCallbackQuery({ text: '已取消' });
+    await ctx.reply('❌ 操作已取消');
+    return;
+  }
+
   const channelInput = channelResponse.message?.text;
 
   if (!channelInput) {
@@ -79,7 +100,8 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
       .text('📅 最近3个月', 'transfer_date:90')
       .text('📅 最近30天', 'transfer_date:30').row()
       .text('📅 最近7天', 'transfer_date:7')
-      .text('🗓️ 自定义时间', 'transfer_date:custom').row();
+      .text('🗓️ 自定义时间', 'transfer_date:custom').row()
+      .text('❌ 取消', 'transfer_cancel');
 
     await ctx.reply(
       `✅ 频道：${channelUsername}\n\n` +
@@ -94,6 +116,12 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
       return;
     }
 
+    if (dateResponse.callbackQuery.data === 'transfer_cancel') {
+      await dateResponse.answerCallbackQuery({ text: '已取消' });
+      await ctx.reply('❌ 操作已取消');
+      return;
+    }
+
     const dateChoice = dateResponse.callbackQuery.data.split(':')[1];
     await dateResponse.answerCallbackQuery();
 
@@ -102,13 +130,25 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
 
     if (dateChoice === 'custom') {
       // 自定义时间范围
+      const customDateKeyboard = new InlineKeyboard()
+        .text('❌ 取消', 'transfer_cancel');
+
       await ctx.reply(
         '🗓️ 自定义时间范围\n\n' +
         '请输入起始日期（格式：2024-01-01）\n' +
-        `截止日期默认为今天（${endDate.toISOString().split('T')[0]}）`
+        `截止日期默认为今天（${endDate.toISOString().split('T')[0]}）`,
+        { reply_markup: customDateKeyboard }
       );
 
       const customDateResponse = await conversation.wait();
+
+      // 检查是否点击了取消按钮
+      if (customDateResponse.callbackQuery?.data === 'transfer_cancel') {
+        await customDateResponse.answerCallbackQuery({ text: '已取消' });
+        await ctx.reply('❌ 操作已取消');
+        return;
+      }
+
       const dateInput = customDateResponse.message?.text;
 
       if (!dateInput) {
@@ -148,7 +188,8 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
   const contentKeyboard = new InlineKeyboard()
     .text('🖼️ 仅图片', 'transfer_content:photo')
     .text('🎥 仅视频', 'transfer_content:video')
-    .text('🎬 图片+视频', 'transfer_content:both');
+    .text('🎬 图片+视频', 'transfer_content:both').row()
+    .text('❌ 取消', 'transfer_cancel');
 
   const dateRangeText = config.dateRange
     ? `📅 日期范围：${config.dateRange.start.toISOString().split('T')[0]} ~ ${config.dateRange.end.toISOString().split('T')[0]}\n\n`
@@ -168,6 +209,12 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
     return;
   }
 
+  if (contentResponse.callbackQuery.data === 'transfer_cancel') {
+    await contentResponse.answerCallbackQuery({ text: '已取消' });
+    await ctx.reply('❌ 操作已取消');
+    return;
+  }
+
   const contentChoice = contentResponse.callbackQuery.data.split(':')[1];
   await contentResponse.answerCallbackQuery();
 
@@ -182,14 +229,83 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
   const contentTypeText = contentChoice === 'photo' ? '仅图片' :
                           contentChoice === 'video' ? '仅视频' : '图片+视频';
 
-  // 步骤 5: 输入关键字（强制）
+  // 步骤 5: 输入标题（必填）
+  const titleKeyboard = new InlineKeyboard()
+    .text('❌ 取消', 'transfer_cancel');
+
   await ctx.reply(
     `🎬 内容类型：${contentTypeText}\n\n` +
-    '请输入关键字（支持模糊匹配）\n' +
-    '合集标题将使用此关键字'
+    '请输入合集标题（必填）',
+    { reply_markup: titleKeyboard }
+  );
+
+  const titleResponse = await conversation.wait();
+
+  // 检查是否点击了取消按钮
+  if (titleResponse.callbackQuery?.data === 'transfer_cancel') {
+    await titleResponse.answerCallbackQuery({ text: '已取消' });
+    await ctx.reply('❌ 操作已取消');
+    return;
+  }
+
+  const title = titleResponse.message?.text?.trim();
+
+  if (!title) {
+    await ctx.reply('❌ 标题不能为空，操作已取消');
+    return;
+  }
+
+  config.title = title;
+
+  // 步骤 6: 输入描述（可选）
+  const descKeyboard = new InlineKeyboard()
+    .text('⏭️ 跳过', 'transfer_skip')
+    .text('❌ 取消', 'transfer_cancel');
+
+  await ctx.reply(
+    `📦 标题：${title}\n\n` +
+    '请输入合集描述（可选）',
+    { reply_markup: descKeyboard }
+  );
+
+  const descriptionResponse = await conversation.wait();
+
+  // 检查是否点击了跳过或取消按钮
+  if (descriptionResponse.callbackQuery?.data === 'transfer_cancel') {
+    await descriptionResponse.answerCallbackQuery({ text: '已取消' });
+    await ctx.reply('❌ 操作已取消');
+    return;
+  }
+
+  if (descriptionResponse.callbackQuery?.data === 'transfer_skip') {
+    await descriptionResponse.answerCallbackQuery({ text: '已跳过' });
+  } else {
+    const descriptionText = descriptionResponse.message?.text?.trim();
+    if (descriptionText) {
+      config.description = descriptionText;
+    }
+  }
+
+  // 步骤 7: 输入关键字（必填）
+  const keywordKeyboard = new InlineKeyboard()
+    .text('❌ 取消', 'transfer_cancel');
+
+  await ctx.reply(
+    `📦 标题：${title}\n` +
+    `📝 描述：${config.description || '无'}\n\n` +
+    '请输入关键字（必填，用于匹配频道消息）',
+    { reply_markup: keywordKeyboard }
   );
 
   const keywordResponse = await conversation.wait();
+
+  // 检查是否点击了取消按钮
+  if (keywordResponse.callbackQuery?.data === 'transfer_cancel') {
+    await keywordResponse.answerCallbackQuery({ text: '已取消' });
+    await ctx.reply('❌ 操作已取消');
+    return;
+  }
+
   const keyword = keywordResponse.message?.text?.trim();
 
   if (!keyword) {
@@ -199,7 +315,7 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
 
   config.keyword = keyword;
 
-  // 步骤 6: 确认配置
+  // 步骤 8: 确认配置
   const confirmKeyboard = new InlineKeyboard()
     .text('🚀 开始搬运', 'transfer_confirm:start')
     .text('❌ 取消', 'transfer_confirm:cancel');
@@ -211,7 +327,8 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
 
   await ctx.reply(
     '✅ 搬运任务配置完成\n\n' +
-    `📦 合集标题：${keyword}\n` +
+    `📦 合集标题：${config.title}\n` +
+    `📝 合集描述：${config.description || '无'}\n` +
     `📺 目标频道：${channelUsername}\n` +
     `📋 搬运模式：${modeText}\n` +
     dateText +
@@ -254,6 +371,8 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
     dateRange: config.dateRange,
     contentType: config.contentType,
     keyword: config.keyword,
+    title: config.title,
+    description: config.description,
     userId: ctx.from!.id,
   } as TransferConfig).catch((error: any) => {
     logger.error('Transfer task failed', error);

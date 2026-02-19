@@ -1,5 +1,5 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
-import { Context } from 'grammy';
+import { Context, InlineKeyboard } from 'grammy';
 import collectionService from '../../services/collection';
 import mediaService from '../../services/media';
 import Logger from '../../utils/logger';
@@ -30,33 +30,62 @@ export async function editCollectionFlow(conversation: MyConversation, ctx: MyCo
 
   const originalTitle = originalCollection.title;
 
+  const titleKeyboard = new InlineKeyboard()
+    .text('⏭️ 跳过', 'edit_skip')
+    .text('❌ 取消', 'edit_cancel');
+
   await ctx.reply(
     `📝 编辑合集\n\n` +
     `当前标题：${originalCollection.title}\n` +
     `当前描述：${originalCollection.description || '无'}\n\n` +
-    `请输入新的标题（或输入 /skip 保持不变）：`
+    `请输入新的标题：`,
+    { reply_markup: titleKeyboard }
   );
 
   // 获取新标题
   const titleResponse = await conversation.wait();
-  let newTitle = titleResponse.message?.text;
 
-  if (newTitle === '/skip') {
-    newTitle = originalTitle;
-  }
-
-  if (!newTitle) {
-    await ctx.reply('❌ 标题不能为空');
+  // 检查是否点击了取消按钮
+  if (titleResponse.callbackQuery?.data === 'edit_cancel') {
+    await titleResponse.answerCallbackQuery({ text: '已取消' });
+    await ctx.reply('❌ 已取消编辑');
     return;
   }
 
-  // 获取新描述
-  await ctx.reply('📝 请输入新的描述（或输入 /skip 保持不变）：');
-  const descResponse = await conversation.wait();
-  let newDescription: string | undefined = descResponse.message?.text;
+  let newTitle: string;
+  if (titleResponse.callbackQuery?.data === 'edit_skip') {
+    await titleResponse.answerCallbackQuery({ text: '已跳过' });
+    newTitle = originalTitle;
+  } else {
+    const titleText = titleResponse.message?.text;
+    if (!titleText) {
+      await ctx.reply('❌ 标题不能为空');
+      return;
+    }
+    newTitle = titleText;
+  }
 
-  if (newDescription === '/skip') {
+  // 获取新描述
+  const descKeyboard = new InlineKeyboard()
+    .text('⏭️ 跳过', 'edit_skip')
+    .text('❌ 取消', 'edit_cancel');
+
+  await ctx.reply('📝 请输入新的描述：', { reply_markup: descKeyboard });
+  const descResponse = await conversation.wait();
+
+  // 检查是否点击了取消按钮
+  if (descResponse.callbackQuery?.data === 'edit_cancel') {
+    await descResponse.answerCallbackQuery({ text: '已取消' });
+    await ctx.reply('❌ 已取消编辑');
+    return;
+  }
+
+  let newDescription: string | undefined;
+  if (descResponse.callbackQuery?.data === 'edit_skip') {
+    await descResponse.answerCallbackQuery({ text: '已跳过' });
     newDescription = originalCollection.description || undefined;
+  } else {
+    newDescription = descResponse.message?.text;
   }
 
   try {

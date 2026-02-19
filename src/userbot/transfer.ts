@@ -14,6 +14,8 @@ interface TransferConfig {
   };
   contentType: ('photo' | 'video')[];
   keyword: string;
+  title: string;
+  description?: string;
   userId: number;
 }
 

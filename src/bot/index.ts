@@ -16,6 +16,9 @@ import { setWelcomeFlow } from './conversations/setWelcomeFlow';
 import { editCollectionFlow } from './conversations/editCollectionFlow';
 import { transferFlow } from './conversations/transferFlow';
 import { transferExecuteFlow } from './conversations/transferExecuteFlow';
+import { searchCollectionFlow } from './conversations/searchCollectionFlow';
+import { adminManageFlow } from './conversations/adminManageFlow';
+import { contactManageFlow } from './conversations/contactManageFlow';
 import { sendMediaGroup } from './handlers/media';
 import mediaService from '../services/media';
 
@@ -52,6 +55,9 @@ bot.use(createConversation(setWelcomeFlow));
 bot.use(createConversation(editCollectionFlow));
 bot.use(createConversation(transferFlow));
 bot.use(createConversation(transferExecuteFlow));
+bot.use(createConversation(searchCollectionFlow));
+bot.use(createConversation(adminManageFlow));
+bot.use(createConversation(contactManageFlow));
 
 // 工具函数：获取文件类型对应的 emoji
 function getFileTypeEmoji(fileType: string): string {
@@ -107,7 +113,7 @@ bot.command('start', async (ctx) => {
   if (!userId) return;
 
   // 获取或创建用户
-  await userService.getOrCreateUser(userId, {
+  const user = await userService.getOrCreateUser(userId, {
     firstName: ctx.from?.first_name,
     lastName: ctx.from?.last_name,
     username: ctx.from?.username,
@@ -117,21 +123,107 @@ bot.command('start', async (ctx) => {
   const startParam = ctx.match;
 
   if (startParam) {
-    // 深链访问 - 展示合集
-    const collection = await collectionService.getCollectionByToken(startParam as string);
+    // 深链访问 - 展示合集（带权限验证）
+    const collection = await collectionService.getCollectionByToken(startParam as string, user.userLevel);
 
     if (!collection) {
+      // 尝试获取合集信息（不带权限过滤）来判断是权限不足还是不存在
+      const collectionWithoutPermission = await collectionService.getCollectionByToken(startParam as string, 2); // VIP权限查询
+
+      if (collectionWithoutPermission) {
+        // 合集存在但权限不足
+        const requiredLevel = collectionWithoutPermission.permissionLevel;
+        let levelName = '';
+        let contactInfo = process.env.ADMIN_CONTACT || '管理员';
+
+        if (requiredLevel === 1) {
+          levelName = '付费用户';
+        } else if (requiredLevel === 2) {
+          levelName = 'VIP用户';
+        }
+
+        await ctx.reply(
+          `🔒 该资源为${levelName}专属\n\n` +
+          `📦 合集：${collectionWithoutPermission.title}\n` +
+          `📝 描述：${collectionWithoutPermission.description || '无'}\n\n` +
+          `请联系 ${contactInfo} 升级账户以访问此资源`
+        );
+      } else {
+        // 合集不存在
+        await ctx.reply('❌ 合集不存在或已被删除');
+      }
+      return;
+    }
+
+    // 获取完整合集信息（用于统计总文件数）
+    const fullCollection = await collectionService.getCollectionByToken(startParam as string, 2); // VIP权限获取全部文件
+
+    if (!fullCollection) {
       await ctx.reply('❌ 合集不存在或已被删除');
       return;
     }
 
+    // 统计用户可访问的文件
+    const accessiblePhotos = collection.mediaFiles.filter(f => f.fileType === 'photo').length;
+    const accessibleVideos = collection.mediaFiles.filter(f => f.fileType === 'video').length;
+
+    // 统计全部文件
+    const totalPhotos = fullCollection.mediaFiles.filter(f => f.fileType === 'photo').length;
+    const totalVideos = fullCollection.mediaFiles.filter(f => f.fileType === 'video').length;
+
+    // 判断是否有受限文件
+    const hasRestrictedFiles = collection.mediaFiles.length < fullCollection.mediaFiles.length;
+
+    if (collection.mediaFiles.length === 0) {
+      // 没有可访问的文件
+      let fileInfo = '';
+      if (totalPhotos > 0) fileInfo += `${totalPhotos}张图片`;
+      if (totalVideos > 0) {
+        if (fileInfo) fileInfo += '、';
+        fileInfo += `${totalVideos}个视频`;
+      }
+
+      await ctx.reply(
+        `🔒 该合集中的所有文件需要更高权限\n\n` +
+        `📦 合集：${collection.title}\n` +
+        `📝 描述：${collection.description || '无'}\n` +
+        `📁 文件总数：${fileInfo}\n\n` +
+        `请联系 ${process.env.ADMIN_CONTACT || '管理员'} 升级账户以访问这些资源`
+      );
+      return;
+    }
+
+    // 构建文件信息提示
+    let fileInfoMessage = `📦 合集：${collection.title}\n` +
+      `📝 描述：${collection.description || '无'}\n`;
+
+    if (hasRestrictedFiles) {
+      // 有部分文件受限
+      fileInfoMessage += `\n📁 您可访问的文件：`;
+      const accessibleInfo: string[] = [];
+      if (accessiblePhotos > 0) accessibleInfo.push(`${accessiblePhotos}张图片`);
+      if (accessibleVideos > 0) accessibleInfo.push(`${accessibleVideos}个视频`);
+      fileInfoMessage += accessibleInfo.join('、');
+
+      fileInfoMessage += `\n🔒 更多文件需升级：`;
+      const restrictedInfo: string[] = [];
+      const restrictedPhotos = totalPhotos - accessiblePhotos;
+      const restrictedVideos = totalVideos - accessibleVideos;
+      if (restrictedPhotos > 0) restrictedInfo.push(`${restrictedPhotos}张图片`);
+      if (restrictedVideos > 0) restrictedInfo.push(`${restrictedVideos}个视频`);
+      fileInfoMessage += restrictedInfo.join('、');
+
+      fileInfoMessage += `\n\n💡 请联系 ${process.env.ADMIN_CONTACT || '管理员'} 升级账户以访问更多资源\n\n正在发送可访问的文件...`;
+    } else {
+      // 所有文件都可访问
+      const fileInfo: string[] = [];
+      if (accessiblePhotos > 0) fileInfo.push(`${accessiblePhotos}张图片`);
+      if (accessibleVideos > 0) fileInfo.push(`${accessibleVideos}个视频`);
+      fileInfoMessage += `\n📁 文件数量：${fileInfo.join('、')}\n\n正在发送文件...`;
+    }
+
     // 发送合集信息
-    await ctx.reply(
-      `📦 合集：${collection.title}\n` +
-      `📝 描述：${collection.description || '无'}\n` +
-      `📁 文件数量：${collection.mediaFiles.length}\n\n` +
-      `正在发送文件...`
-    );
+    await ctx.reply(fileInfoMessage);
 
     // 准备媒体文件数组
     const mediaFiles = collection.mediaFiles.map(media => ({
@@ -161,14 +253,17 @@ bot.command('start', async (ctx) => {
 
     // 构建命令按钮键盘
     const keyboard = new InlineKeyboard()
-      .text('📚 查看合集列表', 'cmd:list').row();
+      .text('📚 查看合集列表', 'cmd:list')
+      .text('🔍 搜索合集', 'cmd:search').row();
 
     if (isAdmin) {
       keyboard
         .text('📤 上传文件', 'cmd:upload')
         .text('📢 广播消息', 'cmd:publish').row()
         .text('🚀 频道搬运', 'cmd:transfer')
-        .text('✏️ 设置欢迎语', 'cmd:setwelcome').row();
+        .text('✏️ 设置欢迎语', 'cmd:setwelcome').row()
+        .text('👥 管理员管理', 'cmd:admin_manage')
+        .text('📞 联系人管理', 'cmd:contact_manage');
     }
 
     await ctx.reply(renderedMessage, {
@@ -356,7 +451,7 @@ bot.on('callback_query:data', async (ctx) => {
 
     switch (command) {
       case 'list':
-        // 显示合集列表
+        // 显示合集列表（全量展示，不过滤权限）
         const { collections, total, page, totalPages } = await collectionService.getCollections(1, 10);
 
         if (collections.length === 0) {
@@ -409,6 +504,29 @@ bot.on('callback_query:data', async (ctx) => {
         await ctx.conversation.enter('transferFlow');
         break;
 
+      case 'search':
+        await ctx.answerCallbackQuery();
+        await ctx.conversation.enter('searchCollectionFlow');
+        break;
+
+      case 'admin_manage':
+        if (!isAdmin) {
+          await ctx.answerCallbackQuery({ text: '❌ 仅管理员可用' });
+          return;
+        }
+        await ctx.answerCallbackQuery();
+        await ctx.conversation.enter('adminManageFlow');
+        break;
+
+      case 'contact_manage':
+        if (!isAdmin) {
+          await ctx.answerCallbackQuery({ text: '❌ 仅管理员可用' });
+          return;
+        }
+        await ctx.answerCallbackQuery();
+        await ctx.conversation.enter('contactManageFlow');
+        break;
+
       default:
         await ctx.answerCallbackQuery({ text: '❌ 未知命令' });
     }
@@ -423,7 +541,8 @@ bot.on('callback_query:data', async (ctx) => {
     const page = parseInt(parts[2]);
 
     try {
-      const filters = keyword ? { title: keyword } : undefined;
+      // 全量展示，不过滤权限
+      const filters: any = keyword ? { title: keyword } : undefined;
       const { collections, total, page: currentPage, totalPages } = await collectionService.getCollections(page, 10, filters);
 
       if (collections.length === 0) {
@@ -446,6 +565,72 @@ bot.on('callback_query:data', async (ctx) => {
       logger.error('Failed to handle pagination', error);
       await ctx.answerCallbackQuery({ text: '❌ 翻页失败，请重试' });
     }
+    return;
+  }
+
+  // 处理搜索结果翻页
+  if (data.startsWith('search_page:')) {
+    const parts = data.split(':');
+    const keyword = parts[1] || '';
+    const page = parseInt(parts[2]);
+
+    try {
+      const { collections, total, page: currentPage, totalPages } = await collectionService.getCollections(
+        page,
+        10,
+        { title: keyword }
+      );
+
+      if (collections.length === 0) {
+        await ctx.answerCallbackQuery({ text: '没有更多结果了' });
+        return;
+      }
+
+      // 构建搜索结果消息
+      let message = `🔍 搜索结果（找到 ${total} 个匹配的合集）\n\n`;
+      message += `关键词：${keyword}\n\n`;
+
+      for (const collection of collections) {
+        const fileCount = (collection as any)._count.mediaFiles;
+        const deepLink = `https://t.me/${process.env.BOT_USERNAME}?start=${collection.token}`;
+
+        message += `📦 ${collection.title}\n`;
+        if (collection.description) {
+          message += `   📝 ${collection.description}\n`;
+        }
+        message += `   📁 ${fileCount} 个文件\n`;
+        message += `   🔗 ${deepLink}\n`;
+        message += `   📅 ${collection.createdAt.toLocaleDateString()}\n\n`;
+      }
+
+      message += `\n📄 第 ${currentPage}/${totalPages} 页`;
+
+      // 构建翻页键盘
+      const keyboard = new InlineKeyboard();
+
+      if (currentPage > 1) {
+        keyboard.text('⬅️ 上一页', `search_page:${keyword}:${currentPage - 1}`);
+      }
+
+      if (currentPage < totalPages) {
+        keyboard.text('➡️ 下一页', `search_page:${keyword}:${currentPage + 1}`);
+      }
+
+      await ctx.editMessageText(message, {
+        reply_markup: keyboard.inline_keyboard.length > 0 ? keyboard : undefined,
+      });
+
+      await ctx.answerCallbackQuery();
+    } catch (error) {
+      logger.error('Failed to handle search pagination', error);
+      await ctx.answerCallbackQuery({ text: '❌ 翻页失败，请重试' });
+    }
+    return;
+  }
+
+  // 处理搜索取消
+  if (data === 'search_cancel') {
+    await ctx.answerCallbackQuery({ text: '已取消搜索' });
     return;
   }
 

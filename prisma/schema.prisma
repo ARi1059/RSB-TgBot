@@ -19,6 +19,7 @@ model User {
   username    String?
   isAdmin     Boolean  @default(false) @map("is_admin")
   isActive    Boolean  @default(true) @map("is_active")
+  userLevel   Int      @default(0) @map("user_level") // 0: 普通用户, 1: 付费用户, 2: VIP
   activatedAt DateTime @default(now()) @map("activated_at")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -30,35 +31,39 @@ model User {
 
 // 合集表
 model Collection {
-  id          Int      @id @default(autoincrement())
-  token       String   @unique // 深链 token
-  title       String
-  description String?
-  creatorId   Int      @map("creator_id")
-  creator     User     @relation(fields: [creatorId], references: [id])
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id              Int      @id @default(autoincrement())
+  token           String   @unique // 深链 token
+  title           String
+  description     String?
+  permissionLevel Int      @default(0) @map("permission_level") // 0: 普通用户可查看, 1: 付费用户可查看, 2: VIP可查看
+  creatorId       Int      @map("creator_id")
+  creator         User     @relation(fields: [creatorId], references: [id])
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   mediaFiles MediaFile[]
 
   @@index([creatorId])
   @@index([createdAt])
+  @@index([permissionLevel])
   @@map("collections")
 }
 
 // 媒体文件表
 model MediaFile {
-  id           Int        @id @default(autoincrement())
-  collectionId Int        @map("collection_id")
-  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  fileId       String     @map("file_id") // Telegram file_id
-  uniqueFileId String     @unique @map("unique_file_id") // 用于去重
-  fileType     String     @map("file_type") // photo, video, document, audio
-  order        Int        @default(0) // 文件顺序
-  createdAt    DateTime   @default(now()) @map("created_at")
+  id              Int        @id @default(autoincrement())
+  collectionId    Int        @map("collection_id")
+  collection      Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  fileId          String     @map("file_id") // Telegram file_id
+  uniqueFileId    String     @unique @map("unique_file_id") // 用于去重
+  fileType        String     @map("file_type") // photo, video, document, audio
+  permissionLevel Int        @default(0) @map("permission_level") // 0: 普通用户可查看, 1: 付费用户可查看, 2: VIP可查看
+  order           Int        @default(0) // 文件顺序
+  createdAt       DateTime   @default(now()) @map("created_at")
 
   @@index([collectionId])
   @@index([uniqueFileId])
+  @@index([permissionLevel])
   @@map("media_files")
 }
 

@@ -1,5 +1,6 @@
 import prisma from '../database/client';
 import Logger from '../utils/logger';
+import { executeWithErrorHandling } from '../utils/errorHandler';
 
 const logger = new Logger('MediaService');
 
@@ -17,7 +18,7 @@ export class MediaService {
     fileType: string;
     order: number;
   }) {
-    try {
+    return executeWithErrorHandling('MediaService', 'addMediaFile', async () => {
       // 检查是否已存在（去重）
       const existing = await prisma.mediaFile.findUnique({
         where: { uniqueFileId: data.uniqueFileId },
@@ -33,14 +34,11 @@ export class MediaService {
       });
 
       return { isDuplicate: false, file };
-    } catch (error) {
-      logger.error(`Error in addMediaFile: ${error}`, error);
-      throw error;
-    }
+    });
   }
 
   /**
-   * 批量添加媒体文件
+   * 批量添加媒体文件（优化版：使用批量插入）
    */
   async addMediaFiles(files: Array<{
     collectionId: number;
@@ -49,77 +47,101 @@ export class MediaService {
     fileType: string;
     order: number;
   }>) {
-    try {
-      const results = [];
-
-      for (const file of files) {
-        const result = await this.addMediaFile(file);
-        results.push(result);
+    return executeWithErrorHandling('MediaService', 'addMediaFiles', async () => {
+      if (files.length === 0) {
+        return [];
       }
 
-      const added = results.filter(r => !r.isDuplicate).length;
-      const duplicates = results.filter(r => r.isDuplicate).length;
-      logger.info(`Batch add complete: ${added} added, ${duplicates} duplicates`);
+      // 批量检查重复
+      const uniqueFileIds = files.map(f => f.uniqueFileId);
+      const existingFiles = await prisma.mediaFile.findMany({
+        where: {
+          uniqueFileId: {
+            in: uniqueFileIds,
+          },
+        },
+      });
+
+      const existingFileIdsSet = new Set(existingFiles.map(f => f.uniqueFileId));
+
+      // 过滤出不重复的文件
+      const filesToInsert = files.filter(f => !existingFileIdsSet.has(f.uniqueFileId));
+      const duplicateCount = files.length - filesToInsert.length;
+
+      if (duplicateCount > 0) {
+        logger.warn(`Found ${duplicateCount} duplicate files, skipping`);
+      }
+
+      // 批量插入（使用 createMany）
+      if (filesToInsert.length > 0) {
+        await prisma.mediaFile.createMany({
+          data: filesToInsert,
+          skipDuplicates: true, // 额外的安全措施
+        });
+
+        logger.info(`Batch insert complete: ${filesToInsert.length} files added`);
+      }
+
+      // 返回结果
+      const results = files.map(file => {
+        const isDuplicate = existingFileIdsSet.has(file.uniqueFileId);
+        return {
+          isDuplicate,
+          file: isDuplicate
+            ? existingFiles.find(f => f.uniqueFileId === file.uniqueFileId)!
+            : file,
+        };
+      });
+
+      logger.info(`Batch add complete: ${filesToInsert.length} added, ${duplicateCount} duplicates`);
 
       return results;
-    } catch (error) {
-      logger.error(`Error in addMediaFiles: ${error}`, error);
-      throw error;
-    }
+    });
   }
 
   /**
    * 获取合集的所有媒体文件
    */
   async getMediaFilesByCollection(collectionId: number) {
-    try {
+    return executeWithErrorHandling('MediaService', 'getMediaFilesByCollection', async () => {
       const files = await prisma.mediaFile.findMany({
         where: { collectionId },
         orderBy: { order: 'asc' },
       });
       return files;
-    } catch (error) {
-      logger.error(`Error in getMediaFilesByCollection: ${error}`, error);
-      throw error;
-    }
+    });
   }
 
   /**
    * 检查文件是否已存在
    */
   async checkDuplicate(uniqueFileId: string): Promise<boolean> {
-    try {
+    return executeWithErrorHandling('MediaService', 'checkDuplicate', async () => {
       const existing = await prisma.mediaFile.findUnique({
         where: { uniqueFileId },
       });
       return !!existing;
-    } catch (error) {
-      logger.error(`Error in checkDuplicate: ${error}`, error);
-      throw error;
-    }
+    });
   }
 
   /**
    * 删除媒体文件
    */
   async deleteMediaFile(id: number) {
-    try {
+    return executeWithErrorHandling('MediaService', 'deleteMediaFile', async () => {
       const file = await prisma.mediaFile.delete({
         where: { id },
       });
       logger.info(`Media file deleted: ${file.id}`);
       return file;
-    } catch (error) {
-      logger.error(`Error in deleteMediaFile: ${error}`, error);
-      throw error;
-    }
+    });
   }
 
   /**
    * 获取媒体文件
    */
   async getMediaFile(id: number) {
-    try {
+    return executeWithErrorHandling('MediaService', 'getMediaFile', async () => {
       const mediaFile = await prisma.mediaFile.findUnique({
         where: { id },
         include: {
@@ -127,10 +149,7 @@ export class MediaService {
         },
       });
       return mediaFile;
-    } catch (error) {
-      logger.error(`Error in getMediaFile: ${error}`, error);
-      throw error;
-    }
+    });
   }
 }
 

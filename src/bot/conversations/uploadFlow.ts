@@ -3,6 +3,7 @@ import { Context, InlineKeyboard } from 'grammy';
 import mediaService from '../../services/media';
 import collectionService from '../../services/collection';
 import userService from '../../services/user';
+import { publishToChannels } from '../../services/channelPublisher';
 import Logger from '../../utils/logger';
 
 const logger = new Logger('UploadFlow');
@@ -26,8 +27,7 @@ export async function uploadFlow(conversation: MyConversation, ctx: MyContext) {
   await ctx.reply(
     '📤 上传模式已启动\n\n' +
     '请发送或转发媒体文件（图片、视频、文档、音频）\n' +
-    '发送完成后，输入 /done 完成上传\n' +
-    '输入 /cancel 取消上传'
+    '发送完成后，输入 /done 完成上传'
   );
 
   // 收集媒体文件
@@ -92,8 +92,19 @@ export async function uploadFlow(conversation: MyConversation, ctx: MyContext) {
   }
 
   // 请求标题
-  await ctx.reply('📝 请输入合集标题：');
+  const titleKeyboard = new InlineKeyboard()
+    .text('❌ 取消', 'upload_cancel');
+
+  await ctx.reply('📝 请输入合集标题：', { reply_markup: titleKeyboard });
   const titleResponse = await conversation.wait();
+
+  // 检查是否点击了取消按钮
+  if (titleResponse.callbackQuery?.data === 'upload_cancel') {
+    await titleResponse.answerCallbackQuery({ text: '已取消' });
+    await ctx.reply('❌ 上传已取消');
+    return;
+  }
+
   const title = titleResponse.message?.text;
 
   if (!title) {
@@ -102,9 +113,27 @@ export async function uploadFlow(conversation: MyConversation, ctx: MyContext) {
   }
 
   // 请求描述
-  await ctx.reply('📝 请输入合集描述（可选，输入 /skip 跳过）：');
+  const descKeyboard = new InlineKeyboard()
+    .text('⏭️ 跳过', 'upload_skip')
+    .text('❌ 取消', 'upload_cancel');
+
+  await ctx.reply('📝 请输入合集描述（可选）：', { reply_markup: descKeyboard });
   const descResponse = await conversation.wait();
-  const description = descResponse.message?.text === '/skip' ? undefined : descResponse.message?.text;
+
+  // 检查是否点击了跳过或取消按钮
+  if (descResponse.callbackQuery?.data === 'upload_cancel') {
+    await descResponse.answerCallbackQuery({ text: '已取消' });
+    await ctx.reply('❌ 上传已取消');
+    return;
+  }
+
+  let description: string | undefined;
+  if (descResponse.callbackQuery?.data === 'upload_skip') {
+    await descResponse.answerCallbackQuery({ text: '已跳过' });
+    description = undefined;
+  } else {
+    description = descResponse.message?.text;
+  }
 
   // 保存合集
   try {
@@ -195,6 +224,17 @@ export async function uploadFlow(conversation: MyConversation, ctx: MyContext) {
     );
 
     logger.info(`Collection ${isNewCollection ? 'created' : 'updated'}: ${collection.id} with ${uploadedFiles.length} files`);
+
+    // 发布到频道
+    await publishToChannels(ctx, {
+      title: collection.title,
+      description: collection.description || undefined,
+      deepLink,
+      mediaFiles: collection.mediaFiles.map(m => ({
+        fileId: m.fileId,
+        fileType: m.fileType,
+      })),
+    });
   } catch (error) {
     logger.error('Failed to create/update collection', error);
     await ctx.reply('❌ 操作失败，请稍后重试');

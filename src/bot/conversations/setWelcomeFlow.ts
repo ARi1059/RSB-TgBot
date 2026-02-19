@@ -1,5 +1,5 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
-import { Context } from 'grammy';
+import { Context, InlineKeyboard } from 'grammy';
 import settingService from '../../services/setting';
 import Logger from '../../utils/logger';
 
@@ -12,20 +12,24 @@ type MyConversation = Conversation<MyContext>;
  * 设置欢迎消息会话流程
  */
 export async function setWelcomeFlow(conversation: MyConversation, ctx: MyContext) {
+  const cancelKeyboard = new InlineKeyboard()
+    .text('❌ 取消', 'welcome_cancel');
+
   await ctx.reply(
     '📝 设置欢迎消息\n\n' +
     '请输入新的欢迎消息内容\n\n' +
     '支持的变量：\n' +
     '• {{user_first_name}} - 用户名字\n' +
     '• {{user_last_name}} - 用户姓氏\n' +
-    '• {{user_username}} - 用户名\n\n' +
-    '输入 /cancel 取消设置'
+    '• {{user_username}} - 用户名',
+    { reply_markup: cancelKeyboard }
   );
 
   const response = await conversation.wait();
 
-  // 检查是否取消
-  if (response.message?.text === '/cancel') {
+  // 检查是否点击了取消按钮
+  if (response.callbackQuery?.data === 'welcome_cancel') {
+    await response.answerCallbackQuery({ text: '已取消' });
     await ctx.reply('❌ 已取消设置');
     return;
   }

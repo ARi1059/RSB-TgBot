@@ -1,5 +1,5 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
-import { Context } from 'grammy';
+import { Context, InlineKeyboard } from 'grammy';
 import userService from '../../services/user';
 import { renderTemplate } from '../../utils/template';
 import Logger from '../../utils/logger';
@@ -13,17 +13,22 @@ type MyConversation = Conversation<MyContext>;
  * 全员推送流程
  */
 export async function publishFlow(conversation: MyConversation, ctx: MyContext) {
+  const cancelKeyboard = new InlineKeyboard()
+    .text('❌ 取消', 'publish_cancel');
+
   await ctx.reply(
     '📢 全员推送\n\n' +
     '请输入要推送的消息内容：\n' +
-    '支持 Premium Emoji 和占位符（如 {{user_first_name}}）\n\n' +
-    '输入 /cancel 取消推送'
+    '支持 Premium Emoji 和占位符（如 {{user_first_name}}）',
+    { reply_markup: cancelKeyboard }
   );
 
   // 等待消息内容
   const response = await conversation.wait();
 
-  if (response.message?.text === '/cancel') {
+  // 检查是否点击了取消按钮
+  if (response.callbackQuery?.data === 'publish_cancel') {
+    await response.answerCallbackQuery({ text: '已取消' });
     await ctx.reply('❌ 已取消推送');
     return;
   }
@@ -36,18 +41,31 @@ export async function publishFlow(conversation: MyConversation, ctx: MyContext) 
   }
 
   // 确认推送
+  const confirmKeyboard = new InlineKeyboard()
+    .text('✅ 确认推送', 'publish_confirm')
+    .text('❌ 取消', 'publish_cancel');
+
   await ctx.reply(
     `📋 预览消息：\n\n${messageContent}\n\n` +
-    '确认推送吗？\n' +
-    '回复 yes 确认，其他内容取消'
+    '确认推送吗？',
+    { reply_markup: confirmKeyboard }
   );
 
   const confirmResponse = await conversation.wait();
 
-  if (confirmResponse.message?.text?.toLowerCase() !== 'yes') {
+  // 检查是否点击了取消按钮
+  if (confirmResponse.callbackQuery?.data === 'publish_cancel') {
+    await confirmResponse.answerCallbackQuery({ text: '已取消' });
     await ctx.reply('❌ 已取消推送');
     return;
   }
+
+  if (confirmResponse.callbackQuery?.data !== 'publish_confirm') {
+    await ctx.reply('❌ 已取消推送');
+    return;
+  }
+
+  await confirmResponse.answerCallbackQuery({ text: '开始推送' });
 
   // 获取所有激活用户
   const users = await userService.getActiveUsers();
