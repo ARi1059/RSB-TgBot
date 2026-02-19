@@ -22,17 +22,27 @@ interface UploadedFile {
  * 上传流程会话
  */
 export async function uploadFlow(conversation: MyConversation, ctx: MyContext) {
-  const uploadedFiles: UploadedFile[] = [];
-  let duplicateCount = 0;
+  try {
+    const uploadedFiles: UploadedFile[] = [];
+    let duplicateCount = 0;
 
-  await ctx.reply(
-    '📤 上传模式已启动\n\n' +
-    '请发送或转发媒体文件（图片、视频、文档、音频）\n' +
-    '发送完成后，输入 /done 完成上传'
-  );
+    await ctx.reply(
+      '📤 上传模式已启动\n\n' +
+      '请发送或转发媒体文件（图片、视频、文档、音频）\n' +
+      '发送完成后，输入 /done 完成上传'
+    );
 
-  // 收集媒体文件
-  while (true) {
+    // 收集媒体文件（添加超时保护）
+    const MAX_WAIT_TIME = 40 * 60 * 1000; // 40分钟超时
+    const startTime = Date.now();
+
+    while (true) {
+      // 检查超时
+      if (Date.now() - startTime > MAX_WAIT_TIME) {
+        logger.warn('Upload flow timeout after 40 minutes');
+        await ctx.reply('⏱️ 上传超时（40分钟），请重新开始');
+        return;
+      }
     const response = await conversation.wait();
 
     // 检查是否完成
@@ -76,17 +86,22 @@ export async function uploadFlow(conversation: MyConversation, ctx: MyContext) {
     }
 
     if (fileId && uniqueFileId && fileType) {
-      // 检查去重
-      const isDuplicate = await mediaService.checkDuplicate(uniqueFileId);
+      // 检查去重（添加异常处理）
+      try {
+        const isDuplicate = await mediaService.checkDuplicate(uniqueFileId);
 
-      if (isDuplicate) {
-        duplicateCount++;
-        await ctx.reply('⚠️ 此文件已存在，已跳过');
-        continue;
+        if (isDuplicate) {
+          duplicateCount++;
+          await ctx.reply('⚠️ 此文件已存在，已跳过');
+          continue;
+        }
+
+        uploadedFiles.push({ fileId, uniqueFileId, fileType });
+        await ctx.reply(`✅ 已添加 ${fileType}（共 ${uploadedFiles.length} 个文件）`);
+      } catch (error) {
+        logger.error(`Failed to check duplicate for file ${uniqueFileId}`, error);
+        await ctx.reply('⚠️ 文件处理失败，已跳过');
       }
-
-      uploadedFiles.push({ fileId, uniqueFileId, fileType });
-      await ctx.reply(`✅ 已添加 ${fileType}（共 ${uploadedFiles.length} 个文件）`);
     } else {
       await ctx.reply('⚠️ 请发送有效的媒体文件');
     }
@@ -134,107 +149,108 @@ export async function uploadFlow(conversation: MyConversation, ctx: MyContext) {
   }
 
   // 保存合集
-  try {
-    const user = await userService.getOrCreateUser(ctx.from!.id, {
-      firstName: ctx.from?.first_name,
-      lastName: ctx.from?.last_name,
-      username: ctx.from?.username,
-    });
+  const user = await userService.getOrCreateUser(ctx.from!.id, {
+    firstName: ctx.from?.first_name,
+    lastName: ctx.from?.last_name,
+    username: ctx.from?.username,
+  });
 
-    // 检查是否已存在相同标题的合集
-    let collection = await collectionService.getCollectionByTitle(title, user.id);
-    let isNewCollection = false;
+  // 检查是否已存在相同标题的合集
+  let collection = await collectionService.getCollectionByTitle(title, user.id);
+  let isNewCollection = false;
 
-    if (collection) {
-      // 合集已存在，追加文件
-      await ctx.reply(`📦 检测到已存在的合集"${title}"，将追加文件到该合集`);
+  if (collection) {
+    // 合集已存在，追加文件
+    await ctx.reply(`📦 检测到已存在的合集"${title}"，将追加文件到该合集`);
 
-      // 获取当前最大的 order 值
-      const maxOrder = collection.mediaFiles.length > 0
-        ? Math.max(...collection.mediaFiles.map(f => f.order))
-        : -1;
+    // 获取当前最大的 order 值
+    const maxOrder = collection.mediaFiles.length > 0
+      ? Math.max(...collection.mediaFiles.map(f => f.order))
+      : -1;
 
-      // 保存媒体文件，order 从 maxOrder + 1 开始
-      const mediaFiles = uploadedFiles.map((file, index) => ({
-        collectionId: collection!.id,
-        fileId: file.fileId,
-        uniqueFileId: file.uniqueFileId,
-        fileType: file.fileType,
-        order: maxOrder + 1 + index,
-      }));
+    // 保存媒体文件，order 从 maxOrder + 1 开始
+    const mediaFiles = uploadedFiles.map((file, index) => ({
+      collectionId: collection!.id,
+      fileId: file.fileId,
+      uniqueFileId: file.uniqueFileId,
+      fileType: file.fileType,
+      order: maxOrder + 1 + index,
+    }));
 
-      await mediaService.addMediaFiles(mediaFiles);
+    await mediaService.addMediaFiles(mediaFiles);
 
-      // 更新描述（直接覆盖）
-      if (description !== undefined) {
-        await collectionService.updateCollection(collection.id, { description });
-        collection.description = description;
-      }
-
-      // 重新获取完整的合集信息（包含 mediaFiles）
-      collection = await collectionService.getCollectionById(collection.id);
-    } else {
-      // 创建新合集
-      isNewCollection = true;
-      const newCollection = await collectionService.createCollection({
-        title,
-        description,
-        creatorId: user.id,
-      });
-
-      // 保存媒体文件
-      const mediaFiles = uploadedFiles.map((file, index) => ({
-        collectionId: newCollection.id,
-        fileId: file.fileId,
-        uniqueFileId: file.uniqueFileId,
-        fileType: file.fileType,
-        order: index,
-      }));
-
-      await mediaService.addMediaFiles(mediaFiles);
-
-      // 重新获取完整的合集信息（包含 mediaFiles）
-      collection = await collectionService.getCollectionById(newCollection.id);
+    // 更新描述（直接覆盖）
+    if (description !== undefined) {
+      await collectionService.updateCollection(collection.id, { description });
+      collection.description = description;
     }
 
-    // 确保 collection 不为 null
-    if (!collection) {
-      await ctx.reply('❌ 操作失败，请稍后重试');
-      return;
-    }
-
-    // 生成深链
-    const deepLink = `https://t.me/${process.env.BOT_USERNAME}?start=${collection.token}`;
-
-    // 创建编辑和删除按钮
-    const keyboard = new InlineKeyboard()
-      .text('✏️ 编辑', `edit_collection:${collection.id}`)
-      .text('🗑️ 删除', `delete_collection:${collection.id}`);
-
-    await ctx.reply(
-      `✅ ${isNewCollection ? '合集创建成功' : '文件追加成功'}！\n\n` +
-      `📦 标题：${title}\n` +
-      `📝 描述：${collection.description || '无'}\n` +
-      `📁 ${isNewCollection ? '文件数量' : '新增文件'}：${uploadedFiles.length}\n` +
-      `⚠️ 跳过重复：${duplicateCount}\n\n` +
-      `🔗 分享链接：\n${deepLink}`,
-      { reply_markup: keyboard }
-    );
-
-    logger.info(`Collection ${isNewCollection ? 'created' : 'updated'}: ${collection.id} with ${uploadedFiles.length} files`);
-
-    // 发布到频道
-    await publishToChannels(ctx, {
-      title: collection.title,
-      description: collection.description || undefined,
-      deepLink,
-      mediaFiles: collection.mediaFiles.map(m => ({
-        fileId: m.fileId,
-        fileType: m.fileType,
-      })),
+    // 重新获取完整的合集信息（包含 mediaFiles）
+    collection = await collectionService.getCollectionById(collection.id);
+  } else {
+    // 创建新合集
+    isNewCollection = true;
+    const newCollection = await collectionService.createCollection({
+      title,
+      description,
+      creatorId: user.id,
     });
-  } catch (error) {
-    logger.error('Failed to create/update collection', error);
+
+    // 保存媒体文件
+    const mediaFiles = uploadedFiles.map((file, index) => ({
+      collectionId: newCollection.id,
+      fileId: file.fileId,
+      uniqueFileId: file.uniqueFileId,
+      fileType: file.fileType,
+      order: index,
+    }));
+
+    await mediaService.addMediaFiles(mediaFiles);
+
+    // 重新获取完整的合集信息（包含 mediaFiles）
+    collection = await collectionService.getCollectionById(newCollection.id);
+  }
+
+  // 确保 collection 不为 null
+  if (!collection) {
     await ctx.reply('❌ 操作失败，请稍后重试');
+    return;
+  }
+
+  // 生成深链
+  const deepLink = `https://t.me/${process.env.BOT_USERNAME}?start=${collection.token}`;
+
+  // 创建编辑和删除按钮
+  const keyboard = new InlineKeyboard()
+    .text('✏️ 编辑', `edit_collection:${collection.id}`)
+    .text('🗑️ 删除', `delete_collection:${collection.id}`);
+
+  await ctx.reply(
+    `✅ ${isNewCollection ? '合集创建成功' : '文件追加成功'}！\n\n` +
+    `📦 标题：${title}\n` +
+    `📝 描述：${collection.description || '无'}\n` +
+    `📁 ${isNewCollection ? '文件数量' : '新增文件'}：${uploadedFiles.length}\n` +
+    `⚠️ 跳过重复：${duplicateCount}\n\n` +
+    `🔗 分享链接：\n${deepLink}`,
+    { reply_markup: keyboard }
+  );
+
+  logger.info(`Collection ${isNewCollection ? 'created' : 'updated'}: ${collection.id} with ${uploadedFiles.length} files`);
+
+  // 发布到频道
+  await publishToChannels(ctx, {
+    title: collection.title,
+    description: collection.description || undefined,
+    deepLink,
+    mediaFiles: collection.mediaFiles.map(m => ({
+      fileId: m.fileId,
+      fileType: m.fileType,
+    })),
+  });
+
+  logger.info(`Upload flow completed successfully for collection ${collection.id}`);
+  } catch (error) {
+    logger.error('Upload flow error', error);
+    await ctx.reply('❌ 上传流程出错，请稍后重试');
   }
 }

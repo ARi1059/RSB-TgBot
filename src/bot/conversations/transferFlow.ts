@@ -24,9 +24,10 @@ interface TransferConfig {
  * 频道搬运流程会话
  */
 export async function transferFlow(conversation: MyConversation, ctx: MyContext) {
-  const config: Partial<TransferConfig> = {};
+  try {
+    const config: Partial<TransferConfig> = {};
 
-  // 步骤 1: 选择搬运模式
+    // 步骤 1: 选择搬运模式
   const modeKeyboard = new InlineKeyboard()
     .text('📚 全频道搬运', 'transfer_mode:all')
     .text('📅 按日期搬运', 'transfer_mode:date_range').row()
@@ -379,5 +380,10 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
     ctx.reply('❌ 搬运任务执行失败').catch(() => {});
   });
 
+  logger.info('Transfer flow completed successfully');
   // transferFlow 会话结束，管理员可以继续使用其他功能
+  } catch (error) {
+    logger.error('Transfer flow error', error);
+    await ctx.reply('❌ 搬运配置流程出错，请稍后重试');
+  }
 }

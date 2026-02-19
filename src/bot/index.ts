@@ -832,8 +832,6 @@ async function setupCommands() {
 // 启动 Bot
 async function start() {
   logger.info('Starting bot...');
-  logger.info(`Bot token: ${process.env.BOT_TOKEN?.substring(0, 10)}...`);
-  logger.info(`Admin IDs: ${process.env.ADMIN_IDS}`);
 
   try {
     // 获取 bot 信息（带超时）
