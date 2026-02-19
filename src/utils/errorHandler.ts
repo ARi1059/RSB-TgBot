@@ -15,7 +15,7 @@ export function withErrorHandling(serviceName: string) {
 
     descriptor.value = async function (...args: any[]) {
       try {
-        logger.debug(`${propertyKey} called with args:`, args);
+        logger.debug(`${propertyKey} called with args: ${JSON.stringify(args)}`);
         const result = await originalMethod.apply(this, args);
         logger.debug(`${propertyKey} completed successfully`);
         return result;

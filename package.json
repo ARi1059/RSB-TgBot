@@ -11,7 +11,10 @@
     "userbot:login": "tsx scripts/login-userbot.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "type-check": "tsc --noEmit",
+    "prisma:sync": "prisma generate && npm run type-check",
+    "prebuild": "npm run prisma:sync"
   },
   "keywords": [
     "telegram",
