@@ -13,8 +13,6 @@ export async function showCancelWithMenuButton(ctx: MyContext, cancelMessage: st
   const userId = ctx.from?.id;
   if (!userId) return;
 
-  const isAdmin = permissionService.isAdmin(userId);
-
   // 创建返回菜单按钮
   const keyboard = KeyboardFactory.createBackToMenuKeyboard();
 
@@ -58,8 +56,6 @@ export function buildCollectionListMessage(
   keyword?: string,
   isAdmin: boolean = false
 ): { message: string; keyboard: any } {
-  console.log('[buildCollectionListMessage] isAdmin:', isAdmin, 'collections.length:', collections.length);
-
   // 使用 CollectionMessageBuilder 构建消息
   const message = CollectionMessageBuilder.buildListMessage({
     collections,
@@ -80,7 +76,6 @@ export function buildCollectionListMessage(
 
   // 如果是管理员,为每个合集添加编辑和删除按钮
   if (isAdmin && collections.length > 0) {
-    console.log('[buildCollectionListMessage] Adding admin buttons for', collections.length, 'collections');
     keyboard.row();
     for (const collection of collections) {
       keyboard.text(`✏️ ${collection.title.substring(0, 10)}`, `edit_collection:${collection.id}`);

@@ -34,8 +34,8 @@ async function start() {
     await setupCommands(bot);
 
     // 优雅关闭处理
-    process.once('SIGINT', async () => {
-      logger.info('Received SIGINT, stopping bot...');
+    const gracefulShutdown = async (signal: string) => {
+      logger.info(`Received ${signal}, stopping bot...`);
 
       // 停止定时器清理
       logger.info('Stopping cleanup timers...');
@@ -54,29 +54,10 @@ async function start() {
       }
 
       logger.info('Graceful shutdown completed');
-    });
+    };
 
-    process.once('SIGTERM', async () => {
-      logger.info('Received SIGTERM, stopping bot...');
-
-      // 停止定时器清理
-      logger.info('Stopping cleanup timers...');
-      deduplicationMiddleware.stopCleanup();
-      collectionService.stopCleanup();
-
-      // 停止 bot
-      bot.stop();
-
-      // 关闭数据库连接
-      try {
-        await prisma.$disconnect();
-        logger.info('Database connection closed');
-      } catch (error) {
-        logger.error('Error closing database connection', error);
-      }
-
-      logger.info('Graceful shutdown completed');
-    });
+    process.once('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
     // 启动 long polling
     logger.info('Starting long polling...');
