@@ -1,8 +1,8 @@
 import { Context, NextFunction } from 'grammy';
-import userService from '../../services/user';
-import Logger from '../../utils/logger';
+import permissionService from '../../services/permission';
+import { createLogger } from '../../utils/logger';
 
-const logger = new Logger('AuthMiddleware');
+const logger = createLogger('AuthMiddleware');
 
 /**
  * 管理员权限检查中间件
@@ -15,7 +15,7 @@ export async function adminOnly(ctx: Context, next: NextFunction) {
     return;
   }
 
-  const isAdmin = await userService.isAdmin(userId);
+  const isAdmin = permissionService.isAdmin(userId);
 
   if (!isAdmin) {
     await ctx.reply('⚠️ 此命令仅限管理员使用');

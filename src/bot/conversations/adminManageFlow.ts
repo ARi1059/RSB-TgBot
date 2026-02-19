@@ -1,10 +1,11 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
 import { Context, InlineKeyboard } from 'grammy';
-import Logger from '../../utils/logger';
+import { createLogger } from '../../utils/logger';
+import permissionService from '../../services/permission';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const logger = new Logger('AdminManageFlow');
+const logger = createLogger('AdminManageFlow');
 
 type MyContext = Context & ConversationFlavor;
 type MyConversation = Conversation<MyContext>;
@@ -120,6 +121,9 @@ export async function adminManageFlow(conversation: MyConversation, ctx: MyConte
       // 更新环境变量
       process.env.ADMIN_IDS = adminIds.join(',');
 
+      // 刷新权限服务缓存
+      permissionService.refreshCache();
+
       await ctx.reply(
         `✅ 添加成功！权限已立即生效\n\n` +
         `用户ID：${userId}\n\n` +
@@ -150,6 +154,9 @@ export async function adminManageFlow(conversation: MyConversation, ctx: MyConte
 
       // 更新环境变量
       process.env.ADMIN_IDS = adminIds.join(',');
+
+      // 刷新权限服务缓存
+      permissionService.refreshCache();
 
       await ctx.reply(
         `✅ 删除成功！权限已立即生效\n\n` +

@@ -1,9 +1,9 @@
 import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { HttpsProxyAgent } from 'https-proxy-agent';
-import Logger from '../utils/logger';
+import { createLogger } from '../utils/logger';
 
-const logger = new Logger('UserBotClient');
+const logger = createLogger('UserBotClient');
 
 let client: TelegramClient | null = null;
 

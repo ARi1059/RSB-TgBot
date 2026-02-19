@@ -3,7 +3,10 @@ import { config } from 'dotenv';
 import { createConversation } from '@grammyjs/conversations';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { InlineKeyboard } from 'grammy';
-import Logger from '../utils/logger';
+import { createLogger } from '../utils/logger';
+import { Config } from '../config';
+import permissionService from '../services/permission';
+import { CALLBACKS, MESSAGES } from '../constants';
 import { setupSession, MyContext } from './middlewares/session';
 import { adminOnly } from './middlewares/auth';
 import userService from '../services/user';
@@ -26,10 +29,18 @@ import mediaService from '../services/media';
 // 加载环境变量
 config();
 
-const logger = new Logger('Bot');
+// 验证配置
+try {
+  Config.validate();
+} catch (error) {
+  console.error('Configuration validation failed:', error);
+  process.exit(1);
+}
 
-// 配置代理（如果设置了 HTTP_PROXY 或 HTTPS_PROXY）
-const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY;
+const logger = createLogger('Bot');
+
+// 配置代理
+const proxyUrl = Config.HTTP_PROXY;
 const botConfig: any = {
   client: {}
 };
@@ -44,7 +55,7 @@ if (proxyUrl) {
 }
 
 // 创建 Bot 实例
-const bot = new Bot<MyContext>(process.env.BOT_TOKEN!, botConfig);
+const bot = new Bot<MyContext>(Config.BOT_TOKEN, botConfig);
 
 // 配置会话
 setupSession(bot);
@@ -69,12 +80,6 @@ function getFileTypeEmoji(fileType: string): string {
     case 'audio': return '🎵';
     default: return '📄';
   }
-}
-
-// 工具函数：检查用户是否为管理员
-function isUserAdmin(userId: number): boolean {
-  const adminIds = process.env.ADMIN_IDS?.split(',').map(id => parseInt(id.trim())) || [];
-  return adminIds.includes(userId);
 }
 
 // 工具函数：构建删除合集确认消息
@@ -136,7 +141,7 @@ bot.command('start', async (ctx) => {
         // 合集存在但权限不足
         const requiredLevel = collectionWithoutPermission.permissionLevel;
         let levelName = '';
-        let contactInfo = process.env.ADMIN_CONTACT || '管理员';
+        let contactInfo = permissionService.getAdminContact();
 
         if (requiredLevel === 1) {
           levelName = '付费用户';
@@ -166,12 +171,12 @@ bot.command('start', async (ctx) => {
     }
 
     // 统计用户可访问的文件
-    const accessiblePhotos = collection.mediaFiles.filter(f => f.fileType === 'photo').length;
-    const accessibleVideos = collection.mediaFiles.filter(f => f.fileType === 'video').length;
+    const accessiblePhotos = collection.mediaFiles.filter((f: any) => f.fileType === 'photo').length;
+    const accessibleVideos = collection.mediaFiles.filter((f: any) => f.fileType === 'video').length;
 
     // 统计全部文件
-    const totalPhotos = fullCollection.mediaFiles.filter(f => f.fileType === 'photo').length;
-    const totalVideos = fullCollection.mediaFiles.filter(f => f.fileType === 'video').length;
+    const totalPhotos = fullCollection.mediaFiles.filter((f: any) => f.fileType === 'photo').length;
+    const totalVideos = fullCollection.mediaFiles.filter((f: any) => f.fileType === 'video').length;
 
     // 判断是否有受限文件
     const hasRestrictedFiles = collection.mediaFiles.length < fullCollection.mediaFiles.length;
@@ -190,7 +195,7 @@ bot.command('start', async (ctx) => {
         `📦 合集：${collection.title}\n` +
         `📝 描述：${collection.description || '无'}\n` +
         `📁 文件总数：${fileInfo}\n\n` +
-        `请联系 ${process.env.ADMIN_CONTACT || '管理员'} 升级账户以访问这些资源`
+        `请联系 ${permissionService.getAdminContact()} 升级账户以访问这些资源`
       );
       return;
     }
@@ -215,7 +220,7 @@ bot.command('start', async (ctx) => {
       if (restrictedVideos > 0) restrictedInfo.push(`${restrictedVideos}个视频`);
       fileInfoMessage += restrictedInfo.join('、');
 
-      fileInfoMessage += `\n\n💡 请联系 ${process.env.ADMIN_CONTACT || '管理员'} 升级账户以访问更多资源\n\n正在发送可访问的文件...`;
+      fileInfoMessage += `\n\n💡 请联系 ${permissionService.getAdminContact()} 升级账户以访问更多资源\n\n正在发送可访问的文件...`;
     } else {
       // 所有文件都可访问
       const fileInfo: string[] = [];
@@ -228,7 +233,7 @@ bot.command('start', async (ctx) => {
     await ctx.reply(fileInfoMessage);
 
     // 准备媒体文件数组
-    const mediaFiles = collection.mediaFiles.map(media => ({
+    const mediaFiles = collection.mediaFiles.map((media: any) => ({
       fileId: media.fileId,
       fileType: media.fileType,
     }));
@@ -251,7 +256,7 @@ bot.command('start', async (ctx) => {
     });
 
     // 检查是否为管理员
-    const isAdmin = isUserAdmin(userId);
+    const isAdmin = permissionService.isAdmin(userId);
 
     // 构建命令按钮键盘
     const keyboard = new InlineKeyboard()
@@ -295,7 +300,7 @@ bot.command('display', adminOnly, async (ctx) => {
     const fileCount = (collection as any)._count.mediaFiles;
     message += `📦 ${collection.title}\n`;
     message += `   📁 ${fileCount} 个文件\n`;
-    message += `   🔗 t.me/${process.env.BOT_USERNAME}?start=${collection.token}\n`;
+    message += `   🔗 t.me/${Config.BOT_USERNAME}?start=${collection.token}\n`;
     message += `   📅 ${collection.createdAt.toLocaleDateString()}\n`;
     message += `   ID: ${collection.id}\n\n`;
   }
@@ -398,7 +403,7 @@ function buildCollectionListMessage(collections: any[], total: number, page: num
     : `📚 可访问的合集列表（共 ${total} 个）\n\n`;
 
   for (const collection of collections) {
-    const deepLink = `https://t.me/${process.env.BOT_USERNAME}?start=${collection.token}`;
+    const deepLink = `https://t.me/${Config.BOT_USERNAME}?start=${collection.token}`;
 
     // 统计视频和图片数量
     const photoCount = collection.mediaFiles?.filter((f: any) => f.fileType === 'photo').length || 0;
@@ -464,7 +469,7 @@ bot.on('callback_query:data', async (ctx) => {
 
     // 检查是否为管理员
     const userId = ctx.from?.id;
-    const isAdmin = !!(userId && isUserAdmin(userId));
+    const isAdmin = !!(userId && permissionService.isAdmin(userId));
 
     switch (command) {
       case 'list':
@@ -578,7 +583,7 @@ bot.on('callback_query:data', async (ctx) => {
 
       // 检查是否为管理员
       const userId = ctx.from?.id;
-      const isAdmin = !!(userId && isUserAdmin(userId));
+      const isAdmin = !!(userId && permissionService.isAdmin(userId));
 
       const { message, keyboard } = buildCollectionListMessage(collections, total, currentPage, totalPages, keyword || undefined, isAdmin);
 
@@ -618,7 +623,7 @@ bot.on('callback_query:data', async (ctx) => {
 
       for (const collection of collections) {
         const fileCount = (collection as any)._count.mediaFiles;
-        const deepLink = `https://t.me/${process.env.BOT_USERNAME}?start=${collection.token}`;
+        const deepLink = `https://t.me/${Config.BOT_USERNAME}?start=${collection.token}`;
 
         message += `📦 ${collection.title}\n`;
         if (collection.description) {
@@ -702,7 +707,7 @@ bot.on('callback_query:data', async (ctx) => {
 
     // 检查是否为管理员
     const userId = ctx.from?.id;
-    if (!userId || !isUserAdmin(userId)) {
+    if (!userId || !permissionService.isAdmin(userId)) {
       await ctx.answerCallbackQuery({ text: '❌ 仅管理员可用' });
       return;
     }
@@ -836,7 +841,7 @@ bot.on('callback_query:data', async (ctx) => {
 
     // 检查是否为管理员
     const userId = ctx.from?.id;
-    if (!userId || !isUserAdmin(userId)) {
+    if (!userId || !permissionService.isAdmin(userId)) {
       await ctx.answerCallbackQuery({ text: '❌ 仅管理员可用' });
       return;
     }

@@ -1,7 +1,7 @@
 import prisma from '../database/client';
-import Logger from '../utils/logger';
+import { createLogger } from '../utils/logger';
 
-const logger = new Logger('SettingService');
+const logger = createLogger('SettingService');
 
 /**
  * 设置服务

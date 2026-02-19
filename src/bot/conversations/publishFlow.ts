@@ -2,9 +2,9 @@ import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
 import { Context, InlineKeyboard } from 'grammy';
 import userService from '../../services/user';
 import { renderTemplate } from '../../utils/template';
-import Logger from '../../utils/logger';
+import { createLogger } from '../../utils/logger';
 
-const logger = new Logger('PublishFlow');
+const logger = createLogger('PublishFlow');
 
 type MyContext = Context & ConversationFlavor;
 type MyConversation = Conversation<MyContext>;

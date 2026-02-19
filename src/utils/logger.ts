@@ -49,7 +49,7 @@ const loggerCache = new Map<string, Logger>();
  */
 export function createLogger(prefix: string): Logger {
   if (!loggerCache.has(prefix)) {
-    loggerCache.set(prefix, new Logger(prefix));
+    loggerCache.set(prefix, createLogger(prefix));
   }
   return loggerCache.get(prefix)!;
 }
@@ -57,6 +57,6 @@ export function createLogger(prefix: string): Logger {
 /**
  * 默认 Logger 实例
  */
-export const defaultLogger = new Logger('App');
+export const defaultLogger = createLogger('App');
 
 export default Logger;

@@ -2,9 +2,9 @@ import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
 import { Context, InlineKeyboard } from 'grammy';
 import collectionService from '../../services/collection';
 import mediaService from '../../services/media';
-import Logger from '../../utils/logger';
+import { createLogger } from '../../utils/logger';
 
-const logger = new Logger('EditCollectionFlow');
+const logger = createLogger('EditCollectionFlow');
 
 type MyContext = Context & ConversationFlavor;
 type MyConversation = Conversation<MyContext>;
@@ -111,11 +111,11 @@ export async function editCollectionFlow(conversation: MyConversation, ctx: MyCo
         // 获取目标合集的最大 order
         const targetCollection = await collectionService.getCollectionByToken(existingCollection.token);
         const maxOrder = targetCollection && targetCollection.mediaFiles.length > 0
-          ? Math.max(...targetCollection.mediaFiles.map(f => f.order))
+          ? Math.max(...targetCollection.mediaFiles.map((f: any) => f.order))
           : -1;
 
         // 将当前合集的文件追加到目标合集
-        const mediaFiles = currentCollectionFull.mediaFiles.map((file, index) => ({
+        const mediaFiles = currentCollectionFull.mediaFiles.map((file: any, index: number) => ({
           collectionId: existingCollection.id,
           fileId: file.fileId,
           uniqueFileId: file.uniqueFileId,

@@ -1,10 +1,10 @@
-import Logger from './logger';
+import { createLogger } from './logger';
 
 /**
  * 统一的异常处理和日志记录装饰器
  */
 export function withErrorHandling(serviceName: string) {
-  const logger = new Logger(serviceName);
+  const logger = createLogger(serviceName);
 
   return function <T extends (...args: any[]) => Promise<any>>(
     target: any,
@@ -37,7 +37,7 @@ export async function executeWithErrorHandling<T>(
   methodName: string,
   operation: () => Promise<T>
 ): Promise<T> {
-  const logger = new Logger(serviceName);
+  const logger = createLogger(serviceName);
 
   try {
     logger.debug(`${methodName} started`);

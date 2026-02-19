@@ -1,9 +1,9 @@
 import { Api } from 'telegram';
 import { Context } from 'grammy';
 import { getUserBotClient } from './client';
-import Logger from '../utils/logger';
+import { createLogger } from '../utils/logger';
 
-const logger = new Logger('Transfer');
+const logger = createLogger('Transfer');
 
 interface TransferConfig {
   mode: 'all' | 'date_range';

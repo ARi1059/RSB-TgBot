@@ -1,8 +1,8 @@
 import { Context } from 'grammy';
 import { InputMediaPhoto, InputMediaVideo } from 'grammy/types';
-import Logger from '../utils/logger';
+import { createLogger } from '../utils/logger';
 
-const logger = new Logger('ChannelPublisher');
+const logger = createLogger('ChannelPublisher');
 
 interface MediaFile {
   fileId: string;

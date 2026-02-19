@@ -1,8 +1,8 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
 import { Context, InlineKeyboard } from 'grammy';
-import Logger from '../../utils/logger';
+import { createLogger } from '../../utils/logger';
 
-const logger = new Logger('TransferFlow');
+const logger = createLogger('TransferFlow');
 
 type MyContext = Context & ConversationFlavor;
 type MyConversation = Conversation<MyContext>;

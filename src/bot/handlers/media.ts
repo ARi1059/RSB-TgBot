@@ -1,7 +1,7 @@
 import { Context } from 'grammy';
-import Logger from '../../utils/logger';
+import { createLogger } from '../../utils/logger';
 
-const logger = new Logger('MediaHandler');
+const logger = createLogger('MediaHandler');
 
 /**
  * 媒体文件处理器

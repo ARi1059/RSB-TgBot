@@ -4,9 +4,9 @@ import mediaService from '../../services/media';
 import collectionService from '../../services/collection';
 import userService from '../../services/user';
 import { publishToChannels } from '../../services/channelPublisher';
-import Logger from '../../utils/logger';
+import { createLogger } from '../../utils/logger';
 
-const logger = new Logger('TransferExecuteFlow');
+const logger = createLogger('TransferExecuteFlow');
 
 type MyContext = Context & ConversationFlavor;
 type MyConversation = Conversation<MyContext>;

@@ -1,9 +1,9 @@
 import prisma from '../database/client';
 import { executeWithErrorHandling } from '../utils/errorHandler';
 import { UserLevel } from '../utils/permissions';
-import Logger from '../utils/logger';
+import { createLogger } from '../utils/logger';
 
-const logger = new Logger('UserService');
+const logger = createLogger('UserService');
 
 /**
  * 用户服务

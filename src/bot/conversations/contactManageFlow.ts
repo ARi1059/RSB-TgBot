@@ -1,10 +1,10 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
 import { Context, InlineKeyboard } from 'grammy';
-import Logger from '../../utils/logger';
+import { createLogger } from '../../utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const logger = new Logger('ContactManageFlow');
+const logger = createLogger('ContactManageFlow');
 
 type MyContext = Context & ConversationFlavor;
 type MyConversation = Conversation<MyContext>;

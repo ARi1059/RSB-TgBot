@@ -1,8 +1,8 @@
 import prisma from '../database/client';
-import Logger from '../utils/logger';
+import { createLogger } from '../utils/logger';
 import { executeWithErrorHandling } from '../utils/errorHandler';
 
-const logger = new Logger('MediaService');
+const logger = createLogger('MediaService');
 
 /**
  * 媒体文件服务

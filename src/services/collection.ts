@@ -2,14 +2,23 @@ import prisma from '../database/client';
 import { generateToken } from '../utils/token';
 import { executeWithErrorHandling } from '../utils/errorHandler';
 import { UserLevel, PermissionLevel, getMaxAccessiblePermission } from '../utils/permissions';
-import Logger from '../utils/logger';
+import { createLogger } from '../utils/logger';
+import { createCache } from '../utils/cache';
 
-const logger = new Logger('CollectionService');
+const logger = createLogger('CollectionService');
+
+// 创建合集缓存（5分钟 TTL）
+const collectionCache = createCache<any>(5 * 60 * 1000);
 
 /**
  * 合集服务
  */
 export class CollectionService {
+  constructor() {
+    // 启动缓存清理
+    collectionCache.startCleanup();
+  }
+
   /**
    * 创建新合集
    */
@@ -45,10 +54,18 @@ export class CollectionService {
   }
 
   /**
-   * 根据 token 获取合集（带权限过滤）
+   * 根据 token 获取合集（带权限过滤和缓存）
    */
   async getCollectionByToken(token: string, userLevel: UserLevel = UserLevel.NORMAL) {
     return executeWithErrorHandling('CollectionService', 'getCollectionByToken', async () => {
+      // 尝试从缓存获取
+      const cacheKey = `collection:token:${token}:level:${userLevel}`;
+      const cached = collectionCache.get(cacheKey);
+      if (cached) {
+        logger.debug(`Cache hit for token: ${token}`);
+        return cached;
+      }
+
       const collection = await prisma.collection.findUnique({
         where: { token },
         include: {
@@ -75,6 +92,9 @@ export class CollectionService {
       collection.mediaFiles = collection.mediaFiles.filter(
         file => file.permissionLevel <= maxPermission
       );
+
+      // 存入缓存
+      collectionCache.set(cacheKey, collection);
 
       return collection;
     });
@@ -192,6 +212,10 @@ export class CollectionService {
       const collection = await prisma.collection.delete({
         where: { id },
       });
+
+      // 清除相关缓存
+      this.clearCollectionCache(collection.token);
+
       logger.info(`Collection deleted: ${collection.id} - ${collection.title}`);
       return collection;
     });
@@ -210,9 +234,25 @@ export class CollectionService {
         where: { id },
         data,
       });
+
+      // 清除相关缓存
+      this.clearCollectionCache(collection.token);
+
       logger.info(`Collection updated: ${collection.id} - ${collection.title}`);
       return collection;
     });
+  }
+
+  /**
+   * 清除合集相关的所有缓存
+   */
+  private clearCollectionCache(token: string): void {
+    // 清除所有权限等级的缓存
+    for (let level = 0; level <= 2; level++) {
+      const cacheKey = `collection:token:${token}:level:${level}`;
+      collectionCache.delete(cacheKey);
+    }
+    logger.debug(`Cache cleared for collection token: ${token}`);
   }
 }
 
