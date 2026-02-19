@@ -3,6 +3,7 @@ import { Context } from 'grammy';
 import settingService from '../../services/setting';
 import { createLogger } from '../../utils/logger';
 import { KeyboardFactory } from '../ui';
+import { showCancelWithMenuButton } from '../utils/helpers';
 
 const logger = createLogger('SetWelcomeFlow');
 
@@ -30,27 +31,38 @@ export async function setWelcomeFlow(conversation: MyConversation, ctx: MyContex
   // 检查是否点击了取消按钮
   if (response.callbackQuery?.data === 'welcome_cancel') {
     await response.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 已取消设置');
+    await showCancelWithMenuButton(ctx, '❌ 已取消设置');
     return;
   }
 
-  const message = response.message?.text;
+  const message = response.message;
 
-  if (!message) {
-    await ctx.reply('❌ 消息内容不能为空');
+  if (!message || !message.text) {
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 消息内容不能为空', { reply_markup: keyboard });
     return;
   }
 
   try {
-    await settingService.setWelcomeMessage(message);
+    // 保存完整的消息对象（包括 entities）
+    const messageData = {
+      type: 'text',
+      text: message.text,
+      entities: message.entities || [], // 保存消息实体（包括 Premium Emoji）
+    };
+
+    await settingService.setWelcomeMessage(JSON.stringify(messageData));
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
     await ctx.reply(
       '✅ 欢迎消息设置成功！\n\n' +
       '预览：\n' +
-      message
+      message.text,
+      { reply_markup: keyboard }
     );
     logger.info('Welcome message updated successfully');
   } catch (error) {
     logger.error('Failed to set welcome message', error);
-    await ctx.reply('❌ 设置失败，请稍后重试');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 设置失败，请稍后重试', { reply_markup: keyboard });
   }
 }

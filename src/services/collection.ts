@@ -112,8 +112,9 @@ export class CollectionService {
 
   /**
    * 根据 ID 获取合集（带权限过滤）
+   * 默认使用 VIP 权限，这样管理员操作时不会被权限限制
    */
-  async getCollectionById(id: number, userLevel: UserLevel = UserLevel.NORMAL): Promise<CollectionWithMediaAndCreator | null> {
+  async getCollectionById(id: number, userLevel: UserLevel = UserLevel.VIP): Promise<CollectionWithMediaAndCreator | null> {
     return executeWithErrorHandling('CollectionService', 'getCollectionById', async () => {
       const collection = await prisma.collection.findUnique({
         where: { id },
@@ -201,6 +202,9 @@ export class CollectionService {
               select: { mediaFiles: true },
             },
             creator: true,
+            mediaFiles: {
+              select: { permissionLevel: true },
+            },
           },
         }),
         prisma.collection.count({ where }),

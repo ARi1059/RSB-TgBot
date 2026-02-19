@@ -43,6 +43,9 @@ export class CollectionMessageBuilder {
     // 使用 _count 统计
     const fileCount = collection._count.mediaFiles;
 
+    // 判断合集内容状态
+    const contentStatus = this.getCollectionContentStatus(collection);
+
     // 标题
     let item = `📦 ${collection.title}\n`;
 
@@ -56,10 +59,35 @@ export class CollectionMessageBuilder {
       item += `📁 ${fileCount} 个文件\n`;
     }
 
+    // 合集内容状态
+    item += `🔓 合集内容：${contentStatus}\n`;
+
     // 深链接（空一行展示）
     item += `\n🔗 ${deepLink}\n\n`;
 
     return item;
+  }
+
+  /**
+   * 获取合集内容状态
+   */
+  private static getCollectionContentStatus(collection: CollectionListItem): string {
+    if (!collection.mediaFiles || collection.mediaFiles.length === 0) {
+      return '公开';
+    }
+
+    // 检查所有文件的权限
+    const allFree = collection.mediaFiles.every(f => f.permissionLevel === 0);
+    const hasFree = collection.mediaFiles.some(f => f.permissionLevel === 0);
+    const hasNonFree = collection.mediaFiles.some(f => f.permissionLevel > 0);
+
+    if (allFree) {
+      return '公开';
+    } else if (hasFree && hasNonFree) {
+      return '部分公开';
+    } else {
+      return '私密';
+    }
   }
 
   /**

@@ -1,10 +1,11 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
-import { Context } from 'grammy';
+import { Context, InlineKeyboard } from 'grammy';
 import mediaService from '../../services/media';
 import collectionService from '../../services/collection';
 import userService from '../../services/user';
 import { publishToChannels } from '../../services/channelPublisher';
 import { createLogger } from '../../utils/logger';
+import { KeyboardFactory } from '../ui/keyboards/KeyboardFactory';
 
 const logger = createLogger('TransferExecuteFlow');
 
@@ -15,6 +16,7 @@ interface UploadedFile {
   fileId: string;
   uniqueFileId: string;
   fileType: string;
+  permissionLevel?: number; // 权限级别（可选，默认为0）
 }
 
 interface TransferConfig {
@@ -57,9 +59,11 @@ export async function transferExecuteFlow(conversation: MyConversation, ctx: MyC
       // 检查超时
       if (Date.now() - startTime > MAX_WAIT_TIME) {
         logger.warn('Transfer execute flow timeout after 40 minutes');
+        const keyboard = KeyboardFactory.createBackToMenuKeyboard();
         await ctx.api.sendMessage(
           config.userId,
-          '⏱️ 搬运超时（40分钟），已收集的文件将被保存'
+          '⏱️ 搬运超时（40分钟），已收集的文件将被保存',
+          { reply_markup: keyboard }
         );
         break;
       }
@@ -110,9 +114,11 @@ export async function transferExecuteFlow(conversation: MyConversation, ctx: MyC
 
     // 创建合集
     if (uploadedFiles.length === 0) {
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
       await ctx.api.sendMessage(
         config.userId,
-        '⚠️ 搬运完成，但未收集到任何文件'
+        '⚠️ 搬运完成，但未收集到任何文件',
+        { reply_markup: keyboard }
       );
       return;
     }
@@ -136,13 +142,14 @@ export async function transferExecuteFlow(conversation: MyConversation, ctx: MyC
         fileId: file.fileId,
         uniqueFileId: file.uniqueFileId,
         fileType: file.fileType,
+        permissionLevel: 0, // 搬运的文件权限设为0
         order: maxOrder + 1 + index,
       }));
 
       await mediaService.addMediaFiles(mediaFiles);
 
-      // 重新获取完整的合集信息
-      collection = await collectionService.getCollectionById(collection.id);
+      // 重新获取完整的合集信息（管理员使用VIP权限）
+      collection = await collectionService.getCollectionById(collection.id, 2);
     } else {
       // 创建新合集
       isNewCollection = true;
@@ -150,8 +157,9 @@ export async function transferExecuteFlow(conversation: MyConversation, ctx: MyC
 
       const newCollection = await collectionService.createCollection({
         title: config.title,
-        description: config.description || `从 ${config.sourceChannel} 搬运`,
+        description: config.description,
         creatorId: user.id,
+        permissionLevel: 0, // 搬运的合集权限设为0
       });
 
       const mediaFiles = uploadedFiles.map((file, index) => ({
@@ -159,19 +167,22 @@ export async function transferExecuteFlow(conversation: MyConversation, ctx: MyC
         fileId: file.fileId,
         uniqueFileId: file.uniqueFileId,
         fileType: file.fileType,
+        permissionLevel: 0, // 搬运的文件权限设为0
         order: index,
       }));
 
       await mediaService.addMediaFiles(mediaFiles);
 
-      // 重新获取完整的合集信息
-      collection = await collectionService.getCollectionById(newCollection.id);
+      // 重新获取完整的合集信息（管理员使用VIP权限）
+      collection = await collectionService.getCollectionById(newCollection.id, 2);
     }
 
     if (!collection) {
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
       await ctx.api.sendMessage(
         config.userId,
-        '❌ 操作失败，请稍后重试'
+        '❌ 操作失败，请稍后重试',
+        { reply_markup: keyboard }
       );
       return;
     }
@@ -180,6 +191,7 @@ export async function transferExecuteFlow(conversation: MyConversation, ctx: MyC
     const deepLink = `https://t.me/${process.env.BOT_USERNAME}?start=${collection.token}`;
 
     // 通知管理员完成
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
     await ctx.api.sendMessage(
       config.userId,
       `✅ 搬运完成！\n\n` +
@@ -187,12 +199,27 @@ export async function transferExecuteFlow(conversation: MyConversation, ctx: MyC
       `📝 描述：${config.description || '无'}\n` +
       `📁 ${isNewCollection ? '文件数量' : '新增文件'}：${uploadedFiles.length}\n` +
       `⚠️ 跳过重复：${duplicateCount}\n\n` +
-      `🔗 访问链接：\n${deepLink}`
+      `🔗 访问链接：\n${deepLink}`,
+      { reply_markup: keyboard }
     );
 
     logger.info(`Collection ${isNewCollection ? 'created' : 'updated'}: ${collection.id} with ${uploadedFiles.length} files`);
 
-    // 发布到频道
+    // 发布到频道（使用默认文本）
+    const photoCount = collection.mediaFiles.filter(m => m.fileType === 'photo').length;
+    const videoCount = collection.mediaFiles.filter(m => m.fileType === 'video').length;
+
+    let defaultCaption = `📦 ${collection.title}\n`;
+    if (collection.description) {
+      defaultCaption += `📝 ${collection.description}\n`;
+    }
+    defaultCaption += '\n📁 文件总数：';
+    const counts: string[] = [];
+    if (photoCount > 0) counts.push(`${photoCount}张图片`);
+    if (videoCount > 0) counts.push(`${videoCount}个视频`);
+    defaultCaption += counts.join('、');
+    defaultCaption += `\n\n🔗 ${deepLink}`;
+
     await publishToChannels(ctx, {
       title: collection.title,
       description: collection.description || undefined,
@@ -201,6 +228,7 @@ export async function transferExecuteFlow(conversation: MyConversation, ctx: MyC
         fileId: m.fileId,
         fileType: m.fileType,
       })),
+      customCaption: defaultCaption,
     });
 
     logger.info(`Transfer execute flow completed successfully for collection ${collection.id}`);
@@ -211,9 +239,11 @@ export async function transferExecuteFlow(conversation: MyConversation, ctx: MyC
     try {
       const config = (ctx.session as any).transferConfig as TransferConfig;
       if (config?.userId) {
+        const keyboard = KeyboardFactory.createBackToMenuKeyboard();
         await ctx.api.sendMessage(
           config.userId,
-          '❌ 搬运流程出错，请稍后重试'
+          '❌ 搬运流程出错，请稍后重试',
+          { reply_markup: keyboard }
         );
       }
     } catch (notifyError) {

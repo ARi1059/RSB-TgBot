@@ -74,21 +74,17 @@ export class DeduplicationMiddleware {
    * 生成请求唯一键
    */
   private generateRequestKey(ctx: Context, userId: number): string | null {
-    // 回调查询
+    // 只对回调查询（按钮点击）做去重
     if (ctx.callbackQuery?.data) {
       return `${userId}:callback:${ctx.callbackQuery.data}`;
     }
 
-    // 文本消息
-    if (ctx.message?.text) {
-      return `${userId}:message:${ctx.message.text}`;
-    }
-
-    // 命令
+    // 命令也做去重（防止快速重复执行命令）
     if (ctx.message?.entities?.[0]?.type === 'bot_command') {
       return `${userId}:command:${ctx.message.text}`;
     }
 
+    // 普通文本消息不做去重（会话流程需要连续输入）
     // 其他类型不做去重
     return null;
   }

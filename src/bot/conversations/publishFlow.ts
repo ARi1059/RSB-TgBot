@@ -4,6 +4,7 @@ import userService from '../../services/user';
 import { renderTemplate } from '../../utils/template';
 import { createLogger } from '../../utils/logger';
 import { KeyboardFactory } from '../ui';
+import { showCancelWithMenuButton } from '../utils/helpers';
 
 const logger = createLogger('PublishFlow');
 
@@ -29,22 +30,30 @@ export async function publishFlow(conversation: MyConversation, ctx: MyContext) 
   // 检查是否点击了取消按钮
   if (response.callbackQuery?.data === 'publish_cancel') {
     await response.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 已取消推送');
+    await showCancelWithMenuButton(ctx, '❌ 已取消推送');
     return;
   }
 
-  const messageContent = response.message?.text;
+  const message = response.message;
 
-  if (!messageContent) {
-    await ctx.reply('❌ 消息内容不能为空');
+  if (!message || !message.text) {
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 消息内容不能为空', { reply_markup: keyboard });
     return;
   }
+
+  // 保存完整的消息对象（包括 entities）
+  const messageData = {
+    type: 'text',
+    text: message.text,
+    entities: message.entities || [], // 保存消息实体（包括 Premium Emoji）
+  };
 
   // 确认推送
   const confirmKeyboard = KeyboardFactory.createConfirmKeyboard('publish_confirm', 'publish_cancel');
 
   await ctx.reply(
-    `📋 预览消息：\n\n${messageContent}\n\n` +
+    `📋 预览消息：\n\n${messageData.text}\n\n` +
     '确认推送吗？',
     { reply_markup: confirmKeyboard }
   );
@@ -54,12 +63,12 @@ export async function publishFlow(conversation: MyConversation, ctx: MyContext) 
   // 检查是否点击了取消按钮
   if (confirmResponse.callbackQuery?.data === 'publish_cancel') {
     await confirmResponse.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 已取消推送');
+    await showCancelWithMenuButton(ctx, '❌ 已取消推送');
     return;
   }
 
   if (confirmResponse.callbackQuery?.data !== 'publish_confirm') {
-    await ctx.reply('❌ 已取消推送');
+    await showCancelWithMenuButton(ctx, '❌ 已取消推送');
     return;
   }
 
@@ -68,7 +77,8 @@ export async function publishFlow(conversation: MyConversation, ctx: MyContext) 
   // 获取所有激活用户
   const users = await userService.getActiveUsers();
 
-  await ctx.reply(`📤 开始推送，共 ${users.length} 个用户...`);
+  const startKeyboard = KeyboardFactory.createBackToMenuKeyboard();
+  await ctx.reply(`📤 开始推送，共 ${users.length} 个用户...`, { reply_markup: startKeyboard });
 
   let successCount = 0;
   let failCount = 0;
@@ -79,14 +89,16 @@ export async function publishFlow(conversation: MyConversation, ctx: MyContext) 
 
     try {
       // 渲染模板
-      const renderedMessage = renderTemplate(messageContent, {
+      const renderedMessage = renderTemplate(messageData.text, {
         user_first_name: user.firstName || '',
         user_last_name: user.lastName || '',
         user_username: user.username || '',
       });
 
-      // 发送消息
-      await ctx.api.sendMessage(user.telegramId.toString(), renderedMessage);
+      // 发送消息，包含 entities
+      await ctx.api.sendMessage(user.telegramId.toString(), renderedMessage, {
+        entities: messageData.entities, // 传递消息实体（包括 Premium Emoji）
+      });
       successCount++;
 
       // 每 30 条消息暂停 1 秒，避免限流
@@ -105,12 +117,14 @@ export async function publishFlow(conversation: MyConversation, ctx: MyContext) 
     }
   }
 
+  const keyboard = KeyboardFactory.createBackToMenuKeyboard();
   await ctx.reply(
     `✅ 推送完成！\n\n` +
     `📊 统计：\n` +
     `✅ 成功：${successCount}\n` +
     `❌ 失败：${failCount}\n` +
-    `📝 总计：${users.length}`
+    `📝 总计：${users.length}`,
+    { reply_markup: keyboard }
   );
 
   logger.info(`Publish completed: ${successCount} success, ${failCount} failed`);

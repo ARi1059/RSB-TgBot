@@ -7,6 +7,7 @@ import { registerStartCommand } from './commands/start';
 import { registerAdminCommands } from './commands/admin';
 import { registerTransferCommand } from './commands/transfer';
 import { registerCallbackHandlers } from './handlers/callbacks';
+import { registerMessageHandlers } from './handlers/messages';
 
 const logger = createLogger('BotMain');
 
@@ -25,6 +26,9 @@ async function start() {
 
     // 注册回调处理器
     registerCallbackHandlers(bot);
+
+    // 注册消息处理器
+    registerMessageHandlers(bot);
 
     // 设置命令菜单
     await setupCommands(bot);

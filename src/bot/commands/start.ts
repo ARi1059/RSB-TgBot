@@ -55,7 +55,8 @@ async function handleDeepLink(ctx: MyContext, token: string, userLevel: number):
       await handlePermissionDenied(ctx, collectionWithoutPermission);
     } else {
       // 合集不存在
-      await ctx.reply('❌ 合集不存在或已被删除');
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+      await ctx.reply('❌ 合集不存在或已被删除', { reply_markup: keyboard });
     }
     return;
   }
@@ -64,7 +65,8 @@ async function handleDeepLink(ctx: MyContext, token: string, userLevel: number):
   const fullCollection = await collectionService.getCollectionByToken(token, 2); // VIP权限获取全部文件
 
   if (!fullCollection) {
-    await ctx.reply('❌ 合集不存在或已被删除');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 合集不存在或已被删除', { reply_markup: keyboard });
     return;
   }
 
@@ -95,7 +97,7 @@ async function handleDeepLink(ctx: MyContext, token: string, userLevel: number):
     hasRestrictedFiles
   );
 
-  // 发送合集信息
+  // 发送合集信息（不添加按钮，因为后面还会发送媒体组）
   await ctx.reply(fileInfoMessage);
 
   // 准备媒体文件数组
@@ -107,10 +109,16 @@ async function handleDeepLink(ctx: MyContext, token: string, userLevel: number):
   // 以媒体组形式发送所有文件
   try {
     await sendMediaGroup(ctx, mediaFiles);
-    await ctx.reply('✅ 所有文件发送完成！');
+
+    // 发送完成提示，并添加返回菜单按钮
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('✅ 所有文件发送完成！', { reply_markup: keyboard });
   } catch (error) {
     logger.error('Failed to send media group', error);
-    await ctx.reply('❌ 部分文件发送失败');
+
+    // 发送失败提示，也添加返回菜单按钮
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 部分文件发送失败', { reply_markup: keyboard });
   }
 }
 
@@ -128,11 +136,13 @@ async function handlePermissionDenied(ctx: MyContext, collection: any): Promise<
     levelName = 'VIP用户';
   }
 
+  const keyboard = KeyboardFactory.createBackToMenuKeyboard();
   await ctx.reply(
     `🔒 该资源为${levelName}专属\n\n` +
     `📦 合集：${collection.title}\n` +
     `📝 描述：${collection.description || '无'}\n\n` +
-    `请联系 ${contactInfo} 升级账户以访问此资源`
+    `请联系 ${contactInfo} 升级账户以访问此资源`,
+    { reply_markup: keyboard }
   );
 }
 
@@ -152,12 +162,14 @@ async function handleNoAccessibleFiles(
     fileInfo += `${totalVideos}个视频`;
   }
 
+  const keyboard = KeyboardFactory.createBackToMenuKeyboard();
   await ctx.reply(
     `🔒 该合集中的所有文件需要更高权限\n\n` +
     `📦 合集：${collection.title}\n` +
     `📝 描述：${collection.description || '无'}\n` +
     `📁 文件总数：${fileInfo}\n\n` +
-    `请联系 ${permissionService.getAdminContact()} 升级账户以访问这些资源`
+    `请联系 ${permissionService.getAdminContact()} 升级账户以访问这些资源`,
+    { reply_markup: keyboard }
   );
 }
 
@@ -208,11 +220,6 @@ function buildFileInfoMessage(
  */
 async function handleWelcome(ctx: MyContext, userId: number): Promise<void> {
   const welcomeMessage = await settingService.getWelcomeMessage();
-  const renderedMessage = renderTemplate(welcomeMessage, {
-    user_first_name: ctx.from?.first_name || '',
-    user_last_name: ctx.from?.last_name || '',
-    user_username: ctx.from?.username || '',
-  });
 
   // 检查是否为管理员
   const isAdmin = permissionService.isAdmin(userId);
@@ -220,8 +227,33 @@ async function handleWelcome(ctx: MyContext, userId: number): Promise<void> {
   // 使用 KeyboardFactory 构建主菜单
   const keyboard = KeyboardFactory.createMainMenuKeyboard(isAdmin);
 
-  await ctx.reply(renderedMessage, {
-    reply_markup: keyboard,
-  });
+  try {
+    // 尝试解析为 JSON（新格式，包含 entities）
+    const messageData = JSON.parse(welcomeMessage);
+
+    // 渲染文本中的变量
+    const renderedText = renderTemplate(messageData.text, {
+      user_first_name: ctx.from?.first_name || '',
+      user_last_name: ctx.from?.last_name || '',
+      user_username: ctx.from?.username || '',
+    });
+
+    // 发送消息，包含 entities
+    await ctx.reply(renderedText, {
+      entities: messageData.entities, // 传递消息实体（包括 Premium Emoji）
+      reply_markup: keyboard,
+    });
+  } catch (error) {
+    // 如果解析失败，说明是旧格式（纯文本）
+    const renderedMessage = renderTemplate(welcomeMessage, {
+      user_first_name: ctx.from?.first_name || '',
+      user_last_name: ctx.from?.last_name || '',
+      user_username: ctx.from?.username || '',
+    });
+
+    await ctx.reply(renderedMessage, {
+      reply_markup: keyboard,
+    });
+  }
 }
 

@@ -5,6 +5,7 @@ import { Collection, MediaFile, User } from '@prisma/client';
  */
 
 // 包含媒体文件的合集
+// 注意：MediaFile 类型已经包含 permissionLevel 字段（来自 Prisma schema）
 export type CollectionWithMedia = Collection & {
   mediaFiles: MediaFile[];
 };
@@ -37,6 +38,7 @@ export interface CollectionListItem {
     mediaFiles: number;
   };
   creator: User;
+  mediaFiles: Array<{ permissionLevel: number }>;
 }
 
 // 合集列表响应

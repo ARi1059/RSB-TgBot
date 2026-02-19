@@ -56,8 +56,9 @@ export function createBot(): { bot: Bot<MyContext>; deduplicationMiddleware: Ded
   setupSession(bot);
 
   // 创建请求去重中间件实例
-  const deduplicationMiddleware = new DeduplicationMiddleware(1000, 1);
-  bot.use(deduplicationMiddleware.middleware());
+  // 参数：500ms 防抖时间，3 次最大请求（防止快速重复点击按钮）
+  const deduplicationMiddleware = new DeduplicationMiddleware(500, 3);
+  bot.use(deduplicationMiddleware.middleware()); // 暂时注释掉
 
   // 注册会话流程
   bot.use(createConversation(uploadFlow));

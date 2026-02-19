@@ -10,6 +10,7 @@ export class Config {
 
   // 管理员配置
   static readonly ADMIN_IDS = this.parseAdminIds();
+  // 管理员联系方式（用户名格式，如 @admin）
   static readonly ADMIN_CONTACT = process.env.ADMIN_CONTACT || '@admin';
 
   // 数据库配置

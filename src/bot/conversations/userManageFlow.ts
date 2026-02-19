@@ -29,14 +29,16 @@ export async function userManageFlow(conversation: MyConversation, ctx: MyContex
   // 检查是否点击了取消按钮
   if (inputResponse.callbackQuery?.data === 'user_cancel') {
     await inputResponse.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
   let username = inputResponse.message?.text?.trim();
 
   if (!username) {
-    await ctx.reply('❌ 用户名不能为空');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 用户名不能为空', { reply_markup: keyboard });
     return;
   }
 
@@ -47,7 +49,8 @@ export async function userManageFlow(conversation: MyConversation, ctx: MyContex
 
   // 验证用户名格式（只允许字母、数字、下划线）
   if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-    await ctx.reply('❌ 用户名格式错误，只能包含字母、数字和下划线');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 用户名格式错误，只能包含字母、数字和下划线', { reply_markup: keyboard });
     return;
   }
 
@@ -58,7 +61,8 @@ export async function userManageFlow(conversation: MyConversation, ctx: MyContex
     });
 
     if (!user) {
-      await ctx.reply(`❌ 未找到用户：@${username}\n\n该用户可能尚未使用过 Bot`);
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+      await ctx.reply(`❌ 未找到用户：@${username}\n\n该用户可能尚未使用过 Bot`, { reply_markup: keyboard });
       return;
     }
 
@@ -88,12 +92,14 @@ export async function userManageFlow(conversation: MyConversation, ctx: MyContex
     // 检查是否点击了取消按钮
     if (levelResponse.callbackQuery?.data === 'user_cancel') {
       await levelResponse.answerCallbackQuery({ text: '已取消' });
-      await ctx.reply('❌ 操作已取消');
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+      await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
       return;
     }
 
     if (!levelResponse.callbackQuery?.data?.startsWith('user_level:')) {
-      await ctx.reply('❌ 操作已取消');
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+      await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
       return;
     }
 
@@ -113,16 +119,19 @@ export async function userManageFlow(conversation: MyConversation, ctx: MyContex
       : newLevel === UserLevel.PAID ? '付费用户'
       : '普通用户';
 
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
     await ctx.reply(
       `✅ 用户权限修改成功！\n\n` +
       `用户名：@${updatedUser.username || '未设置'}\n` +
       `新权限：${newLevelText}\n\n` +
-      `💡 权限已立即生效，用户可以立即访问对应权限的内容`
+      `💡 权限已立即生效，用户可以立即访问对应权限的内容`,
+      { reply_markup: keyboard }
     );
 
     logger.info(`User level updated: username=${updatedUser.username}, telegramId=${updatedUser.telegramId}, newLevel=${newLevel}`);
   } catch (error) {
     logger.error('Failed to manage user', error);
-    await ctx.reply('❌ 操作失败，请稍后重试');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作失败，请稍后重试', { reply_markup: keyboard });
   }
 }

@@ -33,13 +33,15 @@ export async function adminManageFlow(conversation: MyConversation, ctx: MyConte
   const actionResponse = await conversation.wait();
 
   if (!actionResponse.callbackQuery?.data) {
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
   if (actionResponse.callbackQuery.data === 'admin_cancel') {
     await actionResponse.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
@@ -60,20 +62,23 @@ export async function adminManageFlow(conversation: MyConversation, ctx: MyConte
   // 检查是否点击了取消按钮
   if (inputResponse.callbackQuery?.data === 'admin_cancel') {
     await inputResponse.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
   const userId = inputResponse.message?.text?.trim();
 
   if (!userId) {
-    await ctx.reply('❌ 用户ID不能为空');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 用户ID不能为空', { reply_markup: keyboard });
     return;
   }
 
   // 验证是否为纯数字
   if (!/^\d+$/.test(userId)) {
-    await ctx.reply('❌ 用户ID必须是纯数字');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 用户ID必须是纯数字', { reply_markup: keyboard });
     return;
   }
 
@@ -82,7 +87,8 @@ export async function adminManageFlow(conversation: MyConversation, ctx: MyConte
 
     // 读取 .env 文件
     if (!fs.existsSync(envPath)) {
-      await ctx.reply('❌ .env 文件不存在');
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+      await ctx.reply('❌ .env 文件不存在', { reply_markup: keyboard });
       return;
     }
 
@@ -102,14 +108,16 @@ export async function adminManageFlow(conversation: MyConversation, ctx: MyConte
     }
 
     if (adminLineIndex === -1) {
-      await ctx.reply('❌ 未找到 ADMIN_IDS 配置');
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+      await ctx.reply('❌ 未找到 ADMIN_IDS 配置', { reply_markup: keyboard });
       return;
     }
 
     if (action === 'add') {
       // 添加管理员
       if (adminIds.includes(userId)) {
-        await ctx.reply('⚠️ 该用户已经是管理员');
+        const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+        await ctx.reply('⚠️ 该用户已经是管理员', { reply_markup: keyboard });
         return;
       }
 
@@ -124,26 +132,30 @@ export async function adminManageFlow(conversation: MyConversation, ctx: MyConte
       // 刷新权限服务缓存
       permissionService.refreshCache();
 
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
       await ctx.reply(
         `✅ 添加成功！权限已立即生效\n\n` +
         `用户ID：${userId}\n\n` +
         `当前管理员列表：\n${adminIds.join('\n')}\n\n` +
         `💡 提示：\n` +
         `- 新的权限配置已生效，可以立即使用\n` +
-        `- .env 文件已更新，重启后配置将持久化`
+        `- .env 文件已更新，重启后配置将持久化`,
+        { reply_markup: keyboard }
       );
 
       logger.info(`Admin added: ${userId}`);
     } else {
       // 删除管理员
       if (!adminIds.includes(userId)) {
-        await ctx.reply('⚠️ 该用户不是管理员');
+        const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+        await ctx.reply('⚠️ 该用户不是管理员', { reply_markup: keyboard });
         return;
       }
 
       // 检查是否是最后一个管理员
       if (adminIds.length === 1) {
-        await ctx.reply('❌ 不能删除最后一个管理员');
+        const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+        await ctx.reply('❌ 不能删除最后一个管理员', { reply_markup: keyboard });
         return;
       }
 
@@ -158,19 +170,22 @@ export async function adminManageFlow(conversation: MyConversation, ctx: MyConte
       // 刷新权限服务缓存
       permissionService.refreshCache();
 
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
       await ctx.reply(
         `✅ 删除成功！权限已立即生效\n\n` +
         `用户ID：${userId}\n\n` +
         `当前管理员列表：\n${adminIds.join('\n')}\n\n` +
         `💡 提示：\n` +
         `- 新的权限配置已生效，可以立即使用\n` +
-        `- .env 文件已更新，重启后配置将持久化`
+        `- .env 文件已更新，重启后配置将持久化`,
+        { reply_markup: keyboard }
       );
 
       logger.info(`Admin removed: ${userId}`);
     }
   } catch (error) {
     logger.error('Failed to manage admin', error);
-    await ctx.reply('❌ 操作失败，请稍后重试');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作失败，请稍后重试', { reply_markup: keyboard });
   }
 }

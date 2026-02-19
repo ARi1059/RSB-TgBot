@@ -32,13 +32,15 @@ export async function contactManageFlow(conversation: MyConversation, ctx: MyCon
   const actionResponse = await conversation.wait();
 
   if (!actionResponse.callbackQuery?.data) {
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
   if (actionResponse.callbackQuery.data === 'contact_cancel') {
     await actionResponse.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
@@ -60,14 +62,16 @@ export async function contactManageFlow(conversation: MyConversation, ctx: MyCon
   // 检查是否点击了取消按钮
   if (inputResponse.callbackQuery?.data === 'contact_cancel') {
     await inputResponse.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
   let username = inputResponse.message?.text?.trim();
 
   if (!username) {
-    await ctx.reply('❌ 用户名不能为空');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 用户名不能为空', { reply_markup: keyboard });
     return;
   }
 
@@ -78,7 +82,8 @@ export async function contactManageFlow(conversation: MyConversation, ctx: MyCon
 
   // 验证用户名格式（只允许字母、数字、下划线）
   if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-    await ctx.reply('❌ 用户名格式错误，只能包含字母、数字和下划线');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 用户名格式错误，只能包含字母、数字和下划线', { reply_markup: keyboard });
     return;
   }
 
@@ -87,7 +92,8 @@ export async function contactManageFlow(conversation: MyConversation, ctx: MyCon
 
     // 读取 .env 文件
     if (!fs.existsSync(envPath)) {
-      await ctx.reply('❌ .env 文件不存在');
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+      await ctx.reply('❌ .env 文件不存在', { reply_markup: keyboard });
       return;
     }
 
@@ -125,12 +131,14 @@ export async function contactManageFlow(conversation: MyConversation, ctx: MyCon
       // 更新环境变量
       process.env.ADMIN_CONTACT = newContact;
 
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
       await ctx.reply(
         `✅ 联系人修改成功！权限已立即生效\n\n` +
         `新联系人：${newContact}\n\n` +
         `💡 提示：\n` +
         `- 新的联系人配置已生效，可以立即使用\n` +
-        `- .env 文件已更新，重启后配置将持久化`
+        `- .env 文件已更新，重启后配置将持久化`,
+        { reply_markup: keyboard }
       );
 
       logger.info(`Admin contact updated: ${newContact}`);
@@ -153,18 +161,21 @@ export async function contactManageFlow(conversation: MyConversation, ctx: MyCon
       // 更新环境变量
       process.env.ADMIN_CONTACT = newContact;
 
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
       await ctx.reply(
         `✅ 联系人添加成功！权限已立即生效\n\n` +
         `联系人：${newContact}\n\n` +
         `💡 提示：\n` +
         `- 新的联系人配置已生效，可以立即使用\n` +
-        `- .env 文件已更新，重启后配置将持久化`
+        `- .env 文件已更新，重启后配置将持久化`,
+        { reply_markup: keyboard }
       );
 
       logger.info(`Admin contact added: ${newContact}`);
     }
   } catch (error) {
     logger.error('Failed to manage contact', error);
-    await ctx.reply('❌ 操作失败，请稍后重试');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作失败，请稍后重试', { reply_markup: keyboard });
   }
 }

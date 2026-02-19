@@ -12,7 +12,9 @@ export class KeyboardFactory {
   static createConfirmKeyboard(confirmData: string, cancelData: string): InlineKeyboard {
     return new InlineKeyboard()
       .text('✅ 确认', confirmData)
-      .text('❌ 取消', cancelData);
+      .text('❌ 取消', cancelData)
+      .row()
+      .text('🏠 返回菜单', 'back_to_menu');
   }
 
   /**
@@ -29,6 +31,13 @@ export class KeyboardFactory {
    */
   static createCancelKeyboard(cancelData: string): InlineKeyboard {
     return new InlineKeyboard().text('❌ 取消', cancelData);
+  }
+
+  /**
+   * 创建返回菜单按钮键盘
+   */
+  static createBackToMenuKeyboard(): InlineKeyboard {
+    return new InlineKeyboard().text('🏠 返回菜单', 'back_to_menu');
   }
 
   /**
@@ -79,11 +88,11 @@ export class KeyboardFactory {
   static createMainMenuKeyboard(isAdmin: boolean): InlineKeyboard {
     const keyboard = new InlineKeyboard()
       .text('📚 查看合集列表', CALLBACKS.COMMAND.LIST)
-      .text('🔍 搜索合集', CALLBACKS.COMMAND.SEARCH)
-      .row();
+      .text('🔍 搜索合集', CALLBACKS.COMMAND.SEARCH);
 
     if (isAdmin) {
       keyboard
+        .row()
         .text('📤 上传文件', CALLBACKS.COMMAND.UPLOAD)
         .text('📢 广播消息', CALLBACKS.COMMAND.PUBLISH)
         .row()
@@ -117,6 +126,9 @@ export class KeyboardFactory {
         keyboard.row();
       }
     }
+
+    // 添加返回菜单按钮
+    keyboard.text('🏠 返回菜单', 'back_to_menu');
 
     return keyboard;
   }

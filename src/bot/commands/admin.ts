@@ -63,8 +63,8 @@ export function registerAdminCommands(bot: Bot<MyContext>): void {
       return;
     }
 
-    // 检查合集是否存在
-    const collection = await collectionService.getCollectionById(collectionId);
+    // 检查合集是否存在（管理员使用VIP权限）
+    const collection = await collectionService.getCollectionById(collectionId, 2);
 
     if (!collection) {
       await ctx.reply('❌ 合集不存在');
@@ -84,8 +84,8 @@ export function registerAdminCommands(bot: Bot<MyContext>): void {
       return;
     }
 
-    // 检查合集是否存在
-    const collection = await collectionService.getCollectionById(collectionId);
+    // 检查合集是否存在（管理员使用VIP权限）
+    const collection = await collectionService.getCollectionById(collectionId, 2);
 
     if (!collection) {
       await ctx.reply('❌ 合集不存在');
