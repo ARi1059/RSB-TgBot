@@ -1,6 +1,8 @@
 import { Conversation, ConversationFlavor } from '@grammyjs/conversations';
 import { Context, InlineKeyboard } from 'grammy';
 import { createLogger } from '../../utils/logger';
+import { KeyboardFactory } from '../ui';
+import { getBeijingTime, getBeijingDateString, getBeijingTimeBeforeDays, getBeijingEndOfDay } from '../../utils/date';
 
 const logger = createLogger('TransferFlow');
 
@@ -42,13 +44,15 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
   const modeResponse = await conversation.wait();
 
   if (!modeResponse.callbackQuery?.data) {
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
   if (modeResponse.callbackQuery.data === 'transfer_cancel') {
     await modeResponse.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
@@ -72,14 +76,16 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
   // 检查是否点击了取消按钮
   if (channelResponse.callbackQuery?.data === 'transfer_cancel') {
     await channelResponse.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
   const channelInput = channelResponse.message?.text;
 
   if (!channelInput) {
-    await ctx.reply('❌ 频道链接不能为空，操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 频道链接不能为空，操作已取消', { reply_markup: keyboard });
     return;
   }
 
@@ -113,20 +119,22 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
     const dateResponse = await conversation.wait();
 
     if (!dateResponse.callbackQuery?.data) {
-      await ctx.reply('❌ 操作已取消');
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+      await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
       return;
     }
 
     if (dateResponse.callbackQuery.data === 'transfer_cancel') {
       await dateResponse.answerCallbackQuery({ text: '已取消' });
-      await ctx.reply('❌ 操作已取消');
+      const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+      await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
       return;
     }
 
     const dateChoice = dateResponse.callbackQuery.data.split(':')[1];
     await dateResponse.answerCallbackQuery();
 
-    const endDate = new Date();
+    const endDate = getBeijingEndOfDay(); // 使用北京时间的当天结束时间（23:59:59）
     let startDate: Date;
 
     if (dateChoice === 'custom') {
@@ -137,7 +145,7 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
       await ctx.reply(
         '🗓️ 自定义时间范围\n\n' +
         '请输入起始日期（格式：2024-01-01）\n' +
-        `截止日期默认为今天（${endDate.toISOString().split('T')[0]}）`,
+        `截止日期默认为今天（${getBeijingDateString()}）`,
         { reply_markup: customDateKeyboard }
       );
 
@@ -146,43 +154,52 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
       // 检查是否点击了取消按钮
       if (customDateResponse.callbackQuery?.data === 'transfer_cancel') {
         await customDateResponse.answerCallbackQuery({ text: '已取消' });
-        await ctx.reply('❌ 操作已取消');
+        const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+        await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
         return;
       }
 
       const dateInput = customDateResponse.message?.text;
 
       if (!dateInput) {
-        await ctx.reply('❌ 日期不能为空，操作已取消');
+        const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+        await ctx.reply('❌ 日期不能为空，操作已取消', { reply_markup: keyboard });
         return;
       }
 
       // 验证日期格式
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
       if (!dateRegex.test(dateInput)) {
-        await ctx.reply('❌ 日期格式错误，请使用 YYYY-MM-DD 格式，操作已取消');
+        const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+        await ctx.reply('❌ 日期格式错误，请使用 YYYY-MM-DD 格式，操作已取消', { reply_markup: keyboard });
         return;
       }
 
-      startDate = new Date(dateInput);
+      // 解析日期并设置为北京时间的当天开始时间（00:00:00）
+      startDate = new Date(dateInput + 'T00:00:00+08:00');
 
       if (isNaN(startDate.getTime())) {
-        await ctx.reply('❌ 无效的日期，操作已取消');
+        const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+        await ctx.reply('❌ 无效的日期，操作已取消', { reply_markup: keyboard });
         return;
       }
 
       if (startDate > endDate) {
-        await ctx.reply('❌ 起始日期不能晚于今天，操作已取消');
+        const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+        await ctx.reply('❌ 起始日期不能晚于今天，操作已取消', { reply_markup: keyboard });
         return;
       }
     } else {
       // 快捷日期选项
       const days = parseInt(dateChoice);
-      startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
+      startDate = getBeijingTimeBeforeDays(days); // 使用北京时间
     }
 
     config.dateRange = { start: startDate, end: endDate };
+
+    // 打印日期入参日志
+    logger.info(`Date range set: start=${startDate.toISOString()} (${startDate.getTime()}), end=${endDate.toISOString()} (${endDate.getTime()})`);
+    logger.info(`Date range (Beijing): start=${startDate.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}, end=${endDate.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
   }
 
   // 步骤 4: 选择内容类型
@@ -206,13 +223,15 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
   const contentResponse = await conversation.wait();
 
   if (!contentResponse.callbackQuery?.data) {
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
   if (contentResponse.callbackQuery.data === 'transfer_cancel') {
     await contentResponse.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
@@ -245,14 +264,16 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
   // 检查是否点击了取消按钮
   if (titleResponse.callbackQuery?.data === 'transfer_cancel') {
     await titleResponse.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
   const title = titleResponse.message?.text?.trim();
 
   if (!title) {
-    await ctx.reply('❌ 标题不能为空，操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 标题不能为空，操作已取消', { reply_markup: keyboard });
     return;
   }
 
@@ -274,7 +295,8 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
   // 检查是否点击了跳过或取消按钮
   if (descriptionResponse.callbackQuery?.data === 'transfer_cancel') {
     await descriptionResponse.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
@@ -303,14 +325,16 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
   // 检查是否点击了取消按钮
   if (keywordResponse.callbackQuery?.data === 'transfer_cancel') {
     await keywordResponse.answerCallbackQuery({ text: '已取消' });
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
   const keyword = keywordResponse.message?.text?.trim();
 
   if (!keyword) {
-    await ctx.reply('❌ 关键字不能为空，操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 关键字不能为空，操作已取消', { reply_markup: keyboard });
     return;
   }
 
@@ -342,7 +366,8 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
   const confirmResponse = await conversation.wait();
 
   if (!confirmResponse.callbackQuery?.data) {
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
@@ -350,19 +375,29 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
   await confirmResponse.answerCallbackQuery();
 
   if (confirmChoice === 'cancel') {
-    await ctx.reply('❌ 操作已取消');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 操作已取消', { reply_markup: keyboard });
     return;
   }
 
   // 步骤 7: 开始搬运
   // 给管理员发送开始提示
+  const startKeyboard = KeyboardFactory.createBackToMenuKeyboard();
   await ctx.reply(
     '🚀 搬运任务已启动\n\n' +
     '⏳ UserBot 正在处理...\n' +
-    '完成后会通知您'
+    '完成后会通知您',
+    { reply_markup: startKeyboard }
   );
 
   logger.info('Starting UserBot transfer with config');
+
+  // 打印传递给 UserBot 的配置日志
+  if (config.dateRange) {
+    logger.info(`Transfer config - dateRange: start=${config.dateRange.start.toISOString()} (${config.dateRange.start.getTime()}), end=${config.dateRange.end.toISOString()} (${config.dateRange.end.getTime()})`);
+    logger.info(`Transfer config - dateRange type: start is ${config.dateRange.start instanceof Date ? 'Date' : typeof config.dateRange.start}, end is ${config.dateRange.end instanceof Date ? 'Date' : typeof config.dateRange.end}`);
+  }
+  logger.info(`Transfer config - mode=${config.mode}, channel=${config.sourceChannel}, keyword=${config.keyword}`);
 
   // 异步调用 UserBot 开始搬运，直接传入配置参数
   const { startTransfer } = require('../../userbot/transfer');
@@ -384,6 +419,7 @@ export async function transferFlow(conversation: MyConversation, ctx: MyContext)
   // transferFlow 会话结束，管理员可以继续使用其他功能
   } catch (error) {
     logger.error('Transfer flow error', error);
-    await ctx.reply('❌ 搬运配置流程出错，请稍后重试');
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 搬运配置流程出错，请稍后重试', { reply_markup: keyboard });
   }
 }

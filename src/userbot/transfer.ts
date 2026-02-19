@@ -44,6 +44,15 @@ export async function startTransfer(ctx: Context, config: TransferConfig) {
   try {
     logger.info('Starting transfer task asynchronously');
 
+    // 打印接收到的配置日志
+    logger.info(`Received config - mode=${config.mode}, channel=${config.sourceChannel}, keyword=${config.keyword}`);
+    if (config.dateRange) {
+      logger.info(`Received config - dateRange: start=${JSON.stringify(config.dateRange.start)} (type: ${typeof config.dateRange.start}), end=${JSON.stringify(config.dateRange.end)} (type: ${typeof config.dateRange.end})`);
+      if (config.dateRange.start instanceof Date) {
+        logger.info(`Received config - dateRange (Date): start=${config.dateRange.start.toISOString()} (${config.dateRange.start.getTime()}), end=${config.dateRange.end.toISOString()} (${config.dateRange.end.getTime()})`);
+      }
+    }
+
     // 连接 UserBot
     const client = await getUserBotClient();
 
@@ -86,32 +95,50 @@ export async function startTransfer(ctx: Context, config: TransferConfig) {
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     // 扫描频道消息，边扫描边转发
-    logger.info('Starting to scan and forward messages...');
+    logger.info('Starting to scan and forward messages from newest to oldest...');
 
     const iterOptions: any = {
       limit: undefined, // 不限制数量
-      reverse: false, // 从新到旧
+      reverse: false, // 从新到旧（最新的消息开始）
     };
 
-    // 如果是按日期搬运，设置时间范围
-    if (config.mode === 'date_range' && config.dateRange) {
-      iterOptions.offsetDate = Math.floor(config.dateRange.start.getTime() / 1000);
-    }
-
-    // 遍历消息
+    // 遍历消息（从最新到最旧）
     for await (const message of client.iterMessages(channel, iterOptions)) {
       stats.scanned++;
 
       // 检查日期范围
       if (config.mode === 'date_range' && config.dateRange) {
+        // message.date 是 UTC 时间戳（秒）
         const messageDate = new Date(message.date * 1000);
-        if (messageDate < config.dateRange.start || messageDate > config.dateRange.end) {
-          // 如果消息早于起始日期，停止扫描
-          if (messageDate < config.dateRange.start) {
-            break;
+
+        // 确保日期对象有效
+        const startDate = config.dateRange.start instanceof Date
+          ? config.dateRange.start
+          : new Date(config.dateRange.start);
+        const endDate = config.dateRange.end instanceof Date
+          ? config.dateRange.end
+          : new Date(config.dateRange.end);
+
+        // 打印前几条消息的日期比较日志
+        if (stats.scanned <= 5) {
+          logger.info(`Message ${message.id} date: ${messageDate.toISOString()} (UTC), comparing with range: ${startDate.toISOString()} ~ ${endDate.toISOString()}`);
+        }
+
+        // 如果消息晚于结束日期，跳过（继续往旧的方向扫描）
+        if (messageDate > endDate) {
+          if (stats.scanned <= 5) {
+            logger.info(`Message date ${messageDate.toISOString()} is after end date ${endDate.toISOString()}, skipping`);
           }
           continue;
         }
+
+        // 如果消息早于起始日期，停止扫描（因为是从新到旧，后面的消息会更旧）
+        if (messageDate < startDate) {
+          logger.info(`Message date ${messageDate.toISOString()} is before start date ${startDate.toISOString()}, stopping scan (scanned ${stats.scanned} messages)`);
+          break;
+        }
+
+        // 此时消息在日期范围内 (startDate <= messageDate <= endDate)
       }
 
       // 检查是否包含媒体

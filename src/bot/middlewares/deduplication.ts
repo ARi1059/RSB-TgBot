@@ -76,7 +76,47 @@ export class DeduplicationMiddleware {
   private generateRequestKey(ctx: Context, userId: number): string | null {
     // 只对回调查询（按钮点击）做去重
     if (ctx.callbackQuery?.data) {
-      return `${userId}:callback:${ctx.callbackQuery.data}`;
+      const callbackData = ctx.callbackQuery.data;
+
+      // 排除会话流程中的回调（这些回调需要在会话中处理，不应该被去重阻止）
+      const conversationCallbacks = [
+        'publish_confirm',
+        'publish_cancel',
+        'upload_cancel',
+        'upload_cancel_start',
+        'upload_skip',
+        'upload_perm:',
+        'add_button',
+        'button_done',
+        'edit_cancel',
+        'edit_skip',
+        'welcome_cancel',
+        'search_cancel',
+        'transfer_cancel',
+        'transfer_mode:',
+        'transfer_date:',
+        'transfer_content:',
+        'transfer_skip',
+        'transfer_confirm:',
+        'admin_action:',
+        'admin_cancel',
+        'contact_action:',
+        'contact_cancel',
+        'user_level:',
+        'user_cancel',
+      ];
+
+      // 检查是否是会话回调
+      const isConversationCallback = conversationCallbacks.some(prefix =>
+        callbackData.startsWith(prefix) || callbackData === prefix
+      );
+
+      // 会话回调不做去重
+      if (isConversationCallback) {
+        return null;
+      }
+
+      return `${userId}:callback:${callbackData}`;
     }
 
     // 命令也做去重（防止快速重复执行命令）

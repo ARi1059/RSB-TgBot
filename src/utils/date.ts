@@ -5,15 +5,11 @@
 
 /**
  * 获取北京时间（UTC+8）
- * @returns 北京时间的 Date 对象
+ * @returns 北京时间的 Date 对象（内部使用 UTC 时间戳）
  */
 export function getBeijingTime(): Date {
-  const now = new Date();
-  // 获取 UTC 时间戳
-  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
-  // 转换为北京时间（UTC+8）
-  const beijingTime = new Date(utcTime + (8 * 60 * 60 * 1000));
-  return beijingTime;
+  // 直接使用当前 UTC 时间
+  return new Date();
 }
 
 /**
@@ -21,31 +17,40 @@ export function getBeijingTime(): Date {
  * @returns 格式化的日期字符串
  */
 export function getBeijingDateString(): string {
-  const beijingTime = getBeijingTime();
+  // 使用 UTC+8 时区格式化
+  const now = new Date();
+  const beijingTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
   return beijingTime.toISOString().split('T')[0];
 }
 
 /**
  * 获取 N 天前的北京时间（当天的开始时间 00:00:00）
  * @param days 天数
- * @returns 北京时间的 Date 对象
+ * @returns Date 对象，表示北京时间当天 00:00:00（内部是 UTC 时间戳）
  */
 export function getBeijingTimeBeforeDays(days: number): Date {
-  const beijingTime = getBeijingTime();
-  beijingTime.setDate(beijingTime.getDate() - days);
-  // 设置为当天开始时间
-  beijingTime.setHours(0, 0, 0, 0);
-  return beijingTime;
+  // 获取北京时间的今天
+  const now = new Date();
+  const beijingNow = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+
+  // 计算 N 天前的日期字符串
+  beijingNow.setDate(beijingNow.getDate() - days);
+  const dateStr = beijingNow.toISOString().split('T')[0];
+
+  // 创建该日期的北京时间 00:00:00
+  return new Date(dateStr + 'T00:00:00+08:00');
 }
 
 /**
  * 获取北京时间当天的结束时间（23:59:59）
- * @returns 北京时间的 Date 对象
+ * @returns Date 对象，表示北京时间当天 23:59:59（内部是 UTC 时间戳）
  */
 export function getBeijingEndOfDay(): Date {
-  const beijingTime = getBeijingTime();
-  beijingTime.setHours(23, 59, 59, 999);
-  return beijingTime;
+  // 获取北京时间的今天日期字符串
+  const dateStr = getBeijingDateString();
+
+  // 创建该日期的北京时间 23:59:59
+  return new Date(dateStr + 'T23:59:59.999+08:00');
 }
 
 /**
