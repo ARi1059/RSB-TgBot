@@ -395,23 +395,37 @@ function buildCollectionListMessage(collections: any[], total: number, page: num
     : `📚 可访问的合集列表（共 ${total} 个）\n\n`;
 
   for (const collection of collections) {
-    const fileCount = (collection as any)._count.mediaFiles;
     const deepLink = `https://t.me/${process.env.BOT_USERNAME}?start=${collection.token}`;
 
+    // 统计视频和图片数量
+    const photoCount = collection.mediaFiles?.filter((f: any) => f.fileType === 'photo').length || 0;
+    const videoCount = collection.mediaFiles?.filter((f: any) => f.fileType === 'video').length || 0;
+
+    // 标题
     message += `📦 ${collection.title}\n`;
+
+    // 描述（如果有）
     if (collection.description) {
-      message += `   📝 ${collection.description}\n`;
+      message += `📝 ${collection.description}\n`;
     }
-    message += `   📁 ${fileCount} 个文件\n`;
-    message += `   🔗 ${deepLink}\n`;
-    message += `   📅 ${collection.createdAt.toLocaleDateString()}\n`;
-    if (isAdmin) {
-      message += `   🆔 ID: ${collection.id}\n`;
+
+    // 文件数统计（为0的不展示）
+    const fileCounts = [];
+    if (videoCount > 0) {
+      fileCounts.push(`🎥 ${videoCount}个视频`);
     }
-    message += `\n`;
+    if (photoCount > 0) {
+      fileCounts.push(`🖼️ ${photoCount}张图片`);
+    }
+    if (fileCounts.length > 0) {
+      message += `📁 ${fileCounts.join(' | ')}\n`;
+    }
+
+    // 深链接（空一行展示）
+    message += `\n🔗 ${deepLink}\n\n`;
   }
 
-  message += `\n📄 第 ${page}/${totalPages} 页`;
+  message += `📄 第 ${page}/${totalPages} 页`;
 
   // 构建翻页键盘
   const keyboard = new InlineKeyboard();
@@ -674,6 +688,13 @@ bot.on('callback_query:data', async (ctx) => {
   if (data.startsWith('edit_collection:')) {
     const collectionId = parseInt(data.split(':')[1]);
 
+    // 检查是否为管理员
+    const userId = ctx.from?.id;
+    if (!userId || !isUserAdmin(userId)) {
+      await ctx.answerCallbackQuery({ text: '❌ 仅管理员可用' });
+      return;
+    }
+
     // 检查合集是否存在
     const collection = await collectionService.getCollectionById(collectionId);
 
@@ -800,6 +821,13 @@ bot.on('callback_query:data', async (ctx) => {
   // 处理删除按钮
   if (data.startsWith('delete_collection:')) {
     const collectionId = parseInt(data.split(':')[1]);
+
+    // 检查是否为管理员
+    const userId = ctx.from?.id;
+    if (!userId || !isUserAdmin(userId)) {
+      await ctx.answerCallbackQuery({ text: '❌ 仅管理员可用' });
+      return;
+    }
 
     try {
       const collection = await collectionService.getCollectionById(collectionId);
