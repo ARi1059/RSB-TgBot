@@ -24,18 +24,17 @@
 - ✅ **智能调度**：按优先级和使用频率自动选择最佳账号
 - ✅ **统计监控**：实时查看账号状态、转发统计、限流信息
 
-**📚 完整文档导航：** [MULTI_SESSION_README.md](./MULTI_SESSION_README.md) - 19 篇文档完整索引
+**📚 完整文档导航：** [MULTI_SESSION_README.md](./MULTI_SESSION_README.md) - 完整文档索引
 
 **🚀 快速入口：**
 - **新手入门** → [QUICK_START.md](./QUICK_START.md) - 5 分钟快速上手
-- **方案选择** → [MULTI_SESSION_COMPARISON.md](./MULTI_SESSION_COMPARISON.md) - 3 种方案对比
+- **快速配置** → [MULTI_SESSION_QUICK_CONFIG.md](./MULTI_SESSION_QUICK_CONFIG.md) - 3 种方案配置
 - **实战教程** → [MULTI_SESSION_TUTORIAL.md](./MULTI_SESSION_TUTORIAL.md) - 手把手操作
 - **配置示例** → [.env.multi-session.example](./.env.multi-session.example) - 详细配置
 - **常见问题** → [MULTI_SESSION_FAQ.md](./MULTI_SESSION_FAQ.md) - 35 个问题解答
 
 **📖 更多文档：**
 - [配置迁移指南](./MULTI_SESSION_MIGRATION.md) - 从单 Session 升级
-- [快速配置指南](./MULTI_SESSION_QUICK_CONFIG.md) - 3 种方案配置
 - [功能详细指南](./MULTI_SESSION_GUIDE.md) - 完整功能说明
 - [最佳实践](./MULTI_SESSION_BEST_PRACTICES.md) - 优化和技巧
 - [数据库示例](./MULTI_SESSION_DATABASE_EXAMPLES.md) - SQL 操作示例

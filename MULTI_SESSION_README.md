@@ -8,7 +8,7 @@
 
 ```
 1. 阅读 → QUICK_START.md (5分钟快速上手)
-2. 选择方案 → MULTI_SESSION_COMPARISON.md (方案对比)
+2. 选择方案 → MULTI_SESSION_QUICK_CONFIG.md (快速配置)
 3. 跟随教程 → MULTI_SESSION_TUTORIAL.md (手把手操作)
 4. 查看示例 → .env.multi-session.example (配置示例)
 ```
@@ -50,23 +50,7 @@
 时长：5-10 分钟
 ```
 
-#### 2. [MULTI_SESSION_COMPARISON.md](MULTI_SESSION_COMPARISON.md)
-**配置方案对比**
-
-```
-内容：
-✓ 3 种方案详细对比
-✓ 可视化架构图
-✓ 性能指标对比
-✓ 适用场景分析
-✓ 成本效益分析
-✓ 实际案例
-
-适合：不确定选择哪种方案的用户
-时长：10-15 分钟
-```
-
-#### 3. [MULTI_SESSION_QUICK_CONFIG.md](MULTI_SESSION_QUICK_CONFIG.md)
+#### 2. [MULTI_SESSION_QUICK_CONFIG.md](MULTI_SESSION_QUICK_CONFIG.md)
 **快速配置指南**
 
 ```
@@ -85,7 +69,7 @@
 
 ### 📚 详细教程（深入学习）
 
-#### 4. [MULTI_SESSION_TUTORIAL.md](MULTI_SESSION_TUTORIAL.md)
+#### 3. [MULTI_SESSION_TUTORIAL.md](MULTI_SESSION_TUTORIAL.md)
 **实战教程（手把手操作）**
 
 ```
@@ -265,13 +249,11 @@
 ```
 第1步：QUICK_START.md (5分钟)
    ↓
-第2步：MULTI_SESSION_COMPARISON.md (10分钟)
+第2步：MULTI_SESSION_QUICK_CONFIG.md (20分钟)
    ↓
-第3步：MULTI_SESSION_QUICK_CONFIG.md (20分钟)
+第3步：实际操作（添加账号、测试）
    ↓
-第4步：实际操作（添加账号、测试）
-   ↓
-第5步：MULTI_SESSION_FAQ.md (按需查阅)
+第4步：MULTI_SESSION_FAQ.md (按需查阅)
 
 总时长：约 1 小时
 ```
@@ -333,7 +315,7 @@
 | 问题 | 推荐文档 | 章节 |
 |------|---------|------|
 | 如何开始使用 | QUICK_START.md | 全部 |
-| 选择哪种方案 | MULTI_SESSION_COMPARISON.md | 方案对比 |
+| 选择哪种方案 | MULTI_SESSION_QUICK_CONFIG.md | 方案对比 |
 | 如何配置环境变量 | ENV_CONFIG_SUMMARY.md | 配置选项 |
 | 如何添加账号 | MULTI_SESSION_TUTORIAL.md | 第三部分 |
 | 如何获取 API ID | MULTI_SESSION_FAQ.md | Q5 |
@@ -418,7 +400,7 @@ FAQ 问题：    35 个
 
 ```
 1. QUICK_START.md
-2. MULTI_SESSION_COMPARISON.md
+2. MULTI_SESSION_QUICK_CONFIG.md
 3. .env.multi-session.example
 ```
 
@@ -434,7 +416,7 @@ FAQ 问题：    35 个
 ### 组合 3：优化配置（1小时）
 
 ```
-1. MULTI_SESSION_COMPARISON.md
+1. MULTI_SESSION_QUICK_CONFIG.md
 2. MULTI_SESSION_QUICK_CONFIG.md
 3. MULTI_SESSION_BEST_PRACTICES.md
 ```
@@ -552,7 +534,7 @@ grep "ERROR" logs/app.log
 
 ### 第二步：选择配置方案
 
-访问 [MULTI_SESSION_COMPARISON.md](MULTI_SESSION_COMPARISON.md) 了解 3 种方案的详细对比。
+访问 [MULTI_SESSION_QUICK_CONFIG.md](MULTI_SESSION_QUICK_CONFIG.md) 了解 3 种方案的详细对比。
 
 ### 第三步：开始配置
 
