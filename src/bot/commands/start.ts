@@ -247,7 +247,8 @@ async function sendMediaPage(
         keyboard.text('➡️ 下一页', `media_page:${token}:${page + 1}`);
       }
 
-      // 在同一行添加返回菜单按钮
+      // 换行后添加返回菜单按钮
+      keyboard.row();
       keyboard.text('🏠 返回菜单', 'back_to_menu');
     } else {
       // 只有一页时，单独显示返回菜单按钮
