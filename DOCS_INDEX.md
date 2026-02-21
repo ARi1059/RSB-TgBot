@@ -295,14 +295,24 @@ grep "ERROR" logs/app.log
 
 - ✅ [QUICK_START.md](./QUICK_START.md) - 快速开始指南
 - ✅ [MULTI_SESSION_MIGRATION.md](./MULTI_SESSION_MIGRATION.md) - 配置迁移指南
+- ✅ [MULTI_SESSION_QUICK_CONFIG.md](./MULTI_SESSION_QUICK_CONFIG.md) - 快速配置指南
+- ✅ [MULTI_SESSION_TUTORIAL.md](./MULTI_SESSION_TUTORIAL.md) - 实战教程
 - ✅ [MULTI_SESSION_GUIDE.md](./MULTI_SESSION_GUIDE.md) - 功能详细指南
 - ✅ [MULTI_SESSION_BEST_PRACTICES.md](./MULTI_SESSION_BEST_PRACTICES.md) - 最佳实践
+- ✅ [MULTI_SESSION_FAQ.md](./MULTI_SESSION_FAQ.md) - 常见问题解答
 
 ### 技术文档
 
 - ✅ [DATABASE_MIGRATION.md](./DATABASE_MIGRATION.md) - 数据库迁移说明
+- ✅ [MULTI_SESSION_DATABASE_EXAMPLES.md](./MULTI_SESSION_DATABASE_EXAMPLES.md) - 数据库配置示例
 - ✅ [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md) - 实现总结
+- ✅ [ENV_CONFIG_SUMMARY.md](./ENV_CONFIG_SUMMARY.md) - 环境变量配置总结
 - ✅ [DOCS_INDEX.md](./DOCS_INDEX.md) - 本文档
+
+### 配置示例
+
+- ✅ [.env.example](./.env.example) - 基础配置示例
+- ✅ [.env.multi-session.example](./.env.multi-session.example) - 多 Session 详细配置示例
 
 ### 脚本文件
 
