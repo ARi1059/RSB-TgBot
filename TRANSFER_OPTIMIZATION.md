@@ -184,11 +184,11 @@ CREATE TABLE transfer_tasks (
 ```typescript
 export const TRANSFER_CONFIG = {
   BATCH_SIZE: 500,                    // 每批次文件数量
-  FORWARD_RATE: 1000,                 // 转发间隔（毫秒）
+  FORWARD_RATE: 1500,                 // 转发间隔（毫秒）- 推荐1500ms
   PAUSE_AFTER_FILES: 50,              // 短暂停触发文件数
-  PAUSE_DURATION: 10000,              // 短暂停时长（毫秒）
-  LONG_PAUSE_AFTER_FILES: 200,        // 长暂停触发文件数
-  LONG_PAUSE_DURATION: 60000,         // 长暂停时长（毫秒）
+  PAUSE_DURATION: 15000,              // 短暂停时长（毫秒）- 15秒
+  LONG_PAUSE_AFTER_FILES: 150,        // 长暂停触发文件数
+  LONG_PAUSE_DURATION: 90000,         // 长暂停时长（毫秒）- 1.5分钟
   PROGRESS_UPDATE_INTERVAL: 10,       // 进度更新间隔（文件数）
   DB_BATCH_SIZE: 100,                 // 数据库批量查询大小
   MAX_DAILY_TRANSFER: 5000,           // 每日最大搬运数量
@@ -200,9 +200,11 @@ export const TRANSFER_CONFIG = {
 
 ### 9.1 速率建议
 
-- **保守模式**：`FORWARD_RATE: 2000`（每秒 0.5 个文件）
-- **标准模式**：`FORWARD_RATE: 1000`（每秒 1 个文件）- 推荐
-- **激进模式**：`FORWARD_RATE: 500`（每秒 2 个文件）- 容易限流
+- **保守模式**：`FORWARD_RATE: 2000`（每秒 0.5 个文件）- 最安全，适合长时间运行
+- **标准模式**：`FORWARD_RATE: 1500`（每秒 0.67 个文件）- 推荐，平衡速度和安全
+- **激进模式**：`FORWARD_RATE: 1000`（每秒 1 个文件）- 容易触发限流
+
+**2026-02-21 更新**：根据实际测试，将默认速率从 1000ms 调整为 1500ms，并增加暂停时长，以减少触发 FloodWait 的频率。
 
 ### 9.2 批次大小建议
 
@@ -282,6 +284,13 @@ await transferService.cleanupOldTasks();
 3. 增加 `PAUSE_DURATION`
 4. 避免在高峰时段搬运
 
+**FloodWait 错误检测改进**：
+- 系统现在支持多种 FloodWait 错误格式检测
+- 自动识别 `FloodWaitError` 类型
+- 检测 `error.errorMessage` 和 `error.message` 中的限流标识
+- 详细记录错误信息便于调试
+- 显示等待时间（秒和分钟）
+
 ## 13. 性能对比
 
 ### 优化前
@@ -308,3 +317,25 @@ await transferService.cleanupOldTasks();
 4. **智能速率**：根据限流情况自动调整速率
 5. **统计报告**：生成搬运任务的统计报告
 6. **Web 界面**：提供 Web 界面管理搬运任务
+7. **自动恢复**：FloodWait 后自动等待并恢复任务（已规划）
+
+## 15. 更新日志
+
+### 2026-02-21
+- **FloodWait 错误检测改进**：
+  - 支持多种错误格式检测（`FloodWaitError` 类型、`errorMessage`、`message`）
+  - 添加详细的错误日志记录，包括错误类型、消息和堆栈信息
+  - 改进用户提示，显示等待时间（秒和分钟）
+  - 修复批次计数变量为可变类型，确保正确更新
+
+- **速率控制优化**：
+  - 将默认 `FORWARD_RATE` 从 1000ms 调整为 1500ms（每秒 0.67 个文件）
+  - 增加 `PAUSE_DURATION` 从 10 秒到 15 秒
+  - 减少 `LONG_PAUSE_AFTER_FILES` 从 200 到 150
+  - 增加 `LONG_PAUSE_DURATION` 从 60 秒到 90 秒
+  - 目标：减少触发 FloodWait 的频率，提高长时间运行的稳定性
+
+- **错误处理改进**：
+  - 非限流错误不再中断整个任务，而是跳过当前消息继续处理
+  - 添加详细的错误日志便于问题排查
+

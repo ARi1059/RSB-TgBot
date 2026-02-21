@@ -143,14 +143,14 @@ export async function startTransfer(ctx: Context, config: TransferConfig) {
 
     // 检查是否达到批次限制
     const batchLimit = TRANSFER_CONFIG.BATCH_SIZE;
-    const currentBatchCount = stats.transferred - batchStartCount;
+    let currentBatchCount = stats.transferred - batchStartCount;
 
     // 遍历消息（从最新到最旧）
     for await (const message of client.iterMessages(channel, iterOptions)) {
       stats.scanned++;
       stats.lastMessageId = message.id;
 
-      // 检查批次限制
+      // 检查批次限制（在循环开始时检查）
       if (currentBatchCount >= batchLimit) {
         logger.info(`Batch limit reached (${batchLimit} files), pausing task`);
         await transferService.markTaskAsPaused(taskId, stats.lastMessageId);
@@ -251,16 +251,30 @@ export async function startTransfer(ctx: Context, config: TransferConfig) {
         // 更新数据库进度
         await transferService.incrementTaskProgress(taskId, 1, 1, 1, stats.lastMessageId);
       } catch (error: any) {
-        logger.error(`Failed to forward message ${message.id}`, error);
+        // 记录详细的错误信息用于调试
+        logger.error(`Failed to forward message ${message.id}`, {
+          errorName: error.constructor?.name,
+          errorMessage: error.errorMessage,
+          message: error.message,
+          seconds: error.seconds,
+          stack: error.stack?.split('\n').slice(0, 3).join('\n'), // 只记录前3行堆栈
+        });
 
-        // 检查是否是限流错误
-        if (error.errorMessage && error.errorMessage.includes('FLOOD_WAIT')) {
+        // 检查是否是限流错误 - 支持多种错误格式
+        const isFloodWait =
+          error.errorMessage === 'FLOOD_WAIT' ||
+          (error.errorMessage && error.errorMessage.includes('FLOOD_WAIT')) ||
+          error.constructor?.name === 'FloodWaitError' ||
+          (error.message && error.message.includes('FloodWait'));
+
+        if (isFloodWait) {
           const waitTime = error.seconds || 60;
           logger.warn(`FloodWait detected, need to wait ${waitTime} seconds`);
 
           // 保存进度并暂停
           await transferService.markTaskAsPaused(taskId, stats.lastMessageId);
 
+          const waitMinutes = Math.ceil(waitTime / 60);
           await ctx.api.editMessageText(
             progressMessage.chat.id,
             progressMessage.message_id,
@@ -268,12 +282,15 @@ export async function startTransfer(ctx: Context, config: TransferConfig) {
             `📦 批次：${stats.batchNumber + 1}\n` +
             `✅ 已扫描：${stats.scanned} 条消息\n` +
             `📥 已转发：${stats.transferred} 个文件\n` +
-            `⏳ 需等待：${waitTime} 秒\n\n` +
+            `⏳ 需等待：${waitTime} 秒 (约 ${waitMinutes} 分钟)\n\n` +
             `💡 任务已保存，请稍后继续`
           );
 
           return;
         }
+
+        // 如果不是限流错误，记录但继续处理下一条消息
+        logger.warn(`Skipping message ${message.id} due to error, continuing with next message`);
       }
 
       // 速率控制：每个文件之间的延迟

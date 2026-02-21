@@ -118,14 +118,19 @@ export const RATE_LIMIT = {
 
 /**
  * 搬运任务配置
+ *
+ * 速率建议：
+ * - 保守模式：FORWARD_RATE: 2000 (每秒0.5个文件) - 最安全，适合长时间运行
+ * - 标准模式：FORWARD_RATE: 1500 (每秒0.67个文件) - 推荐，平衡速度和安全
+ * - 激进模式：FORWARD_RATE: 1000 (每秒1个文件) - 容易触发限流
  */
 export const TRANSFER_CONFIG = {
   BATCH_SIZE: 500, // 每批次文件数量
-  FORWARD_RATE: 1000, // 转发间隔（毫秒）- 每秒1个文件
+  FORWARD_RATE: 1500, // 转发间隔（毫秒）- 推荐1500ms以避免频繁限流
   PAUSE_AFTER_FILES: 50, // 每转发N个文件后暂停
-  PAUSE_DURATION: 10000, // 暂停时长（毫秒）- 10秒
-  LONG_PAUSE_AFTER_FILES: 200, // 每转发N个文件后长暂停
-  LONG_PAUSE_DURATION: 60000, // 长暂停时长（毫秒）- 1分钟
+  PAUSE_DURATION: 15000, // 暂停时长（毫秒）- 增加到15秒
+  LONG_PAUSE_AFTER_FILES: 150, // 每转发N个文件后长暂停（从200降到150）
+  LONG_PAUSE_DURATION: 90000, // 长暂停时长（毫秒）- 增加到1.5分钟
   PROGRESS_UPDATE_INTERVAL: 10, // 每N个文件更新一次进度
   DB_BATCH_SIZE: 100, // 数据库批量查询大小
   MAX_DAILY_TRANSFER: 5000, // 每日最大搬运数量

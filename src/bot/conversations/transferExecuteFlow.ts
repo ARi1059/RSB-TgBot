@@ -47,7 +47,7 @@ export async function transferExecuteFlow(conversation: MyConversation, ctx: MyC
       return;
     }
 
-    const uploadedFiles: UploadedFile[] = [];
+    let uploadedFiles: UploadedFile[] = [];
     let duplicateCount = 0;
 
     logger.info('transferExecuteFlow started, waiting for messages from UserBot...');

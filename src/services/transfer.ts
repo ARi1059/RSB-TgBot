@@ -158,7 +158,7 @@ export async function incrementTaskProgress(
     totalScanned: task.totalScanned + scanned,
     totalMatched: task.totalMatched + matched,
     totalTransferred: task.totalTransferred + transferred,
-    lastMessageId: lastMessageId ?? task.lastMessageId,
+    lastMessageId: lastMessageId ?? task.lastMessageId ?? undefined,
   });
 }
 
