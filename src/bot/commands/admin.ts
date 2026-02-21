@@ -108,4 +108,9 @@ export function registerAdminCommands(bot: Bot<MyContext>): void {
   bot.command('transfer', adminOnly, async (ctx) => {
     await ctx.conversation.enter('transferFlow');
   });
+
+  // /session 命令（管理员）- Session 账号管理
+  bot.command('session', adminOnly, async (ctx) => {
+    await ctx.conversation.enter('sessionManageFlow');
+  });
 }

@@ -1,9 +1,10 @@
 import { Api } from 'telegram';
 import { Context } from 'grammy';
-import { getUserBotClient } from './client';
+import { getAvailableSessionClient, getClientBySessionId } from './client';
 import { createLogger } from '../utils/logger';
 import { TRANSFER_CONFIG } from '../constants';
 import transferService from '../services/transfer';
+import sessionPool from '../services/sessionPool';
 
 const logger = createLogger('Transfer');
 
@@ -49,6 +50,7 @@ export async function startTransfer(ctx: Context, config: TransferConfig) {
 
   let progressMessage: any = null;
   let taskId = config.taskId;
+  let currentSessionId: number | null = null;
 
   try {
     logger.info('Starting transfer task asynchronously');
@@ -73,6 +75,7 @@ export async function startTransfer(ctx: Context, config: TransferConfig) {
         stats.transferred = task.totalTransferred;
         stats.batchNumber = task.batchNumber;
         stats.lastMessageId = task.lastMessageId ?? undefined;
+        currentSessionId = task.currentSessionId ?? null;
       }
     }
 
@@ -88,8 +91,32 @@ export async function startTransfer(ctx: Context, config: TransferConfig) {
       }
     }
 
-    // 连接 UserBot
-    const client = await getUserBotClient();
+    // 获取可用的 session 和客户端
+    let sessionId: number;
+    let client: any;
+
+    if (currentSessionId) {
+      // 恢复任务时，尝试使用之前的 session
+      try {
+        logger.info(`Attempting to resume with session ${currentSessionId}`);
+        client = await getClientBySessionId(currentSessionId);
+        sessionId = currentSessionId;
+      } catch (error) {
+        logger.warn(`Failed to resume with session ${currentSessionId}, getting new session`, error);
+        const sessionClient = await getAvailableSessionClient();
+        sessionId = sessionClient.sessionId;
+        client = sessionClient.client;
+      }
+    } else {
+      // 新任务，获取可用的 session
+      const sessionClient = await getAvailableSessionClient();
+      sessionId = sessionClient.sessionId;
+      client = sessionClient.client;
+    }
+
+    // 更新任务的 session ID
+    await transferService.updateTransferTask(taskId, { currentSessionId: sessionId });
+    logger.info(`Using session ${sessionId} for transfer task ${taskId}`);
 
     // 获取目标频道
     logger.info(`Fetching channel: ${config.sourceChannel}`);
@@ -248,8 +275,9 @@ export async function startTransfer(ctx: Context, config: TransferConfig) {
 
         logger.info(`✅ Forwarded message ${message.id}, total: ${stats.transferred}, batch: ${currentBatchCount}`);
 
-        // 更新数据库进度
+        // 更新数据库进度和 session 计数
         await transferService.incrementTaskProgress(taskId, 1, 1, 1, stats.lastMessageId);
+        await sessionPool.incrementSessionTransfer(sessionId, 1);
       } catch (error: any) {
         // 记录详细的错误信息用于调试
         logger.error(`Failed to forward message ${message.id}`, {
@@ -269,24 +297,66 @@ export async function startTransfer(ctx: Context, config: TransferConfig) {
 
         if (isFloodWait) {
           const waitTime = error.seconds || 60;
-          logger.warn(`FloodWait detected, need to wait ${waitTime} seconds`);
+          logger.warn(`Session ${sessionId} hit FloodWait, need to wait ${waitTime} seconds`);
 
-          // 保存进度并暂停
-          await transferService.markTaskAsPaused(taskId, stats.lastMessageId);
+          // 标记当前 session 为限流状态
+          await sessionPool.markSessionFloodWait(sessionId, waitTime);
 
-          const waitMinutes = Math.ceil(waitTime / 60);
-          await ctx.api.editMessageText(
-            progressMessage.chat.id,
-            progressMessage.message_id,
-            `⚠️ 触发限流，已暂停\n\n` +
-            `📦 批次：${stats.batchNumber + 1}\n` +
-            `✅ 已扫描：${stats.scanned} 条消息\n` +
-            `📥 已转发：${stats.transferred} 个文件\n` +
-            `⏳ 需等待：${waitTime} 秒 (约 ${waitMinutes} 分钟)\n\n` +
-            `💡 任务已保存，请稍后继续`
-          );
+          // 尝试切换到另一个可用的 session
+          logger.info('Attempting to switch to another available session...');
 
-          return;
+          try {
+            const newSessionClient = await getAvailableSessionClient();
+            const oldSessionId = sessionId;
+            sessionId = newSessionClient.sessionId;
+            client = newSessionClient.client;
+
+            // 更新任务的 session ID
+            await transferService.updateTransferTask(taskId, { currentSessionId: sessionId });
+
+            logger.info(`✅ Switched from session ${oldSessionId} to session ${sessionId}`);
+
+            // 重新获取 Bot 实体（使用新客户端）
+            const botUsername = process.env.BOT_USERNAME;
+            if (!botUsername) {
+              throw new Error('BOT_USERNAME not set');
+            }
+            const newBotEntity = await client.getEntity(botUsername);
+
+            // 更新进度消息
+            await ctx.api.editMessageText(
+              progressMessage.chat.id,
+              progressMessage.message_id,
+              `🔄 已切换账号继续搬运\n\n` +
+              `📦 批次：${stats.batchNumber + 1} (${currentBatchCount}/${batchLimit})\n` +
+              `✅ 已扫描：${stats.scanned} 条消息\n` +
+              `🔍 匹配关键字：${stats.matched} 条\n` +
+              `📥 已转发：${stats.transferred} 个文件\n` +
+              `🔄 Session: ${sessionId}`
+            );
+
+            // 使用新 session 继续（跳过当前消息，下次循环会处理）
+            continue;
+          } catch (switchError) {
+            logger.error('Failed to switch to another session', switchError);
+
+            // 没有可用的 session，保存进度并暂停
+            await transferService.markTaskAsPaused(taskId, stats.lastMessageId);
+
+            const waitMinutes = Math.ceil(waitTime / 60);
+            await ctx.api.editMessageText(
+              progressMessage.chat.id,
+              progressMessage.message_id,
+              `⚠️ 所有账号均被限流，已暂停\n\n` +
+              `📦 批次：${stats.batchNumber + 1}\n` +
+              `✅ 已扫描：${stats.scanned} 条消息\n` +
+              `📥 已转发：${stats.transferred} 个文件\n` +
+              `⏳ 最短等待：${waitTime} 秒 (约 ${waitMinutes} 分钟)\n\n` +
+              `💡 任务已保存，请稍后继续或添加新的 session 账号`
+            );
+
+            return;
+          }
         }
 
         // 如果不是限流错误，记录但继续处理下一条消息

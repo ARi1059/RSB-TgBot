@@ -91,6 +91,7 @@ model TransferTask {
   totalTransferred Int     @default(0) @map("total_transferred") // 已转发文件数
   lastMessageId   Int?     @map("last_message_id") // 最后处理的消息ID（用于断点续传）
   batchNumber     Int      @default(0) @map("batch_number") // 当前批次号
+  currentSessionId Int?    @map("current_session_id") // 当前使用的session ID
   config          String   @db.Text // JSON格式的完整配置
   errorMessage    String?  @map("error_message") @db.Text // 错误信息
   startedAt       DateTime? @map("started_at") // 开始时间
@@ -102,4 +103,28 @@ model TransferTask {
   @@index([status])
   @@index([createdAt])
   @@map("transfer_tasks")
+}
+
+// UserBot Session 账号池
+model UserBotSession {
+  id              Int      @id @default(autoincrement())
+  name            String   // 账号名称（用于识别）
+  apiId           Int      @map("api_id")
+  apiHash         String   @map("api_hash")
+  sessionString   String   @map("session_string") @db.Text
+  isActive        Boolean  @default(true) @map("is_active") // 是否启用
+  isAvailable     Boolean  @default(true) @map("is_available") // 是否可用（未被限流）
+  floodWaitUntil  DateTime? @map("flood_wait_until") // 限流解除时间
+  lastUsedAt      DateTime? @map("last_used_at") // 最后使用时间
+  totalTransferred Int     @default(0) @map("total_transferred") // 总转发数
+  dailyTransferred Int     @default(0) @map("daily_transferred") // 今日转发数
+  lastResetDate   DateTime @default(now()) @map("last_reset_date") // 上次重置日期
+  priority        Int      @default(0) // 优先级（数字越大优先级越高）
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, isAvailable])
+  @@index([floodWaitUntil])
+  @@index([priority])
+  @@map("userbot_sessions")
 }

@@ -15,6 +15,7 @@ export const CALLBACKS = {
     ADMIN_MANAGE: 'cmd:admin_manage',
     CONTACT_MANAGE: 'cmd:contact_manage',
     USER_MANAGE: 'cmd:user_manage',
+    SESSION_MANAGE: 'cmd:session_manage',
   },
 
   // 翻页

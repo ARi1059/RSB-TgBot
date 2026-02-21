@@ -16,6 +16,7 @@ import { searchCollectionFlow } from '../conversations/searchCollectionFlow';
 import { adminManageFlow } from '../conversations/adminManageFlow';
 import { contactManageFlow } from '../conversations/contactManageFlow';
 import { userManageFlow } from '../conversations/userManageFlow';
+import { sessionManageFlow } from '../conversations/sessionManageFlow';
 
 // 加载环境变量
 config();
@@ -71,6 +72,7 @@ export function createBot(): { bot: Bot<MyContext>; deduplicationMiddleware: Ded
   bot.use(createConversation(adminManageFlow));
   bot.use(createConversation(contactManageFlow));
   bot.use(createConversation(userManageFlow));
+  bot.use(createConversation(sessionManageFlow));
 
   // 错误处理
   bot.catch((err) => {

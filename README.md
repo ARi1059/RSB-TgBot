@@ -10,7 +10,27 @@
 - 👥 管理员权限控制
 - 📢 全员消息推送
 - 🤖 自动搬运功能（Userbot）
+- 🔄 **多 Session 账号池**（自动切换、断点续传）
 - 💾 PostgreSQL 数据持久化
+
+## ⭐ 新功能：多 Session 账号管理
+
+支持使用多个 Telegram UserBot Session 账号来完成大批量搬运工作：
+
+- ✅ **账号池管理**：添加、删除、启用/禁用多个 session 账号
+- ✅ **自动切换**：账号被限流时自动切换到下一个可用账号
+- ✅ **断点续传**：从限流处继续搬运，不丢失进度
+- ✅ **Bot 内管理**：直接在 Bot 中登录和管理账号
+- ✅ **智能调度**：按优先级和使用频率自动选择最佳账号
+- ✅ **统计监控**：实时查看账号状态、转发统计、限流信息
+
+**快速开始：** 查看 [QUICK_START.md](./QUICK_START.md)
+
+**详细文档：**
+- [多 Session 功能指南](./MULTI_SESSION_GUIDE.md)
+- [配置迁移指南](./MULTI_SESSION_MIGRATION.md) - 从单 Session 迁移到多 Session
+- [最佳实践](./MULTI_SESSION_BEST_PRACTICES.md)
+- [数据库迁移](./DATABASE_MIGRATION.md)
 
 ## 技术栈
 
@@ -105,6 +125,8 @@ RSB-TgBot/
 - `/upload` - 上传媒体文件
 - `/display` - 查看所有合集
 - `/publish` - 全员推送消息
+- `/transfer` - 搬运频道内容
+- `/session` - **Session 账号管理**（新功能）
 
 ### 用户命令
 
