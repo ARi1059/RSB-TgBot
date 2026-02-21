@@ -6,6 +6,7 @@ import userService from '../../services/user';
 import { publishToPrivateChannel } from '../../services/channelPublisher';
 import { createLogger } from '../../utils/logger';
 import { KeyboardFactory } from '../ui/keyboards/KeyboardFactory';
+import { TRANSFER_CONFIG } from '../../constants';
 
 const logger = createLogger('TransferExecuteFlow');
 
@@ -94,20 +95,25 @@ export async function transferExecuteFlow(conversation: MyConversation, ctx: MyC
       }
 
       if (fileId && uniqueFileId && fileType) {
-        // 检查去重（添加异常处理）
-        try {
-          const isDuplicate = await mediaService.checkDuplicate(uniqueFileId);
+        uploadedFiles.push({ fileId, uniqueFileId, fileType });
+        logger.debug(`Collected file: ${fileType}, total: ${uploadedFiles.length}`);
 
-          if (isDuplicate) {
-            duplicateCount++;
-            continue;
+        // 批量去重检查（每收集 N 个文件检查一次）
+        if (uploadedFiles.length % TRANSFER_CONFIG.DB_BATCH_SIZE === 0) {
+          logger.info(`Performing batch duplicate check for ${uploadedFiles.length} files`);
+          const uniqueFileIds = uploadedFiles.map(f => f.uniqueFileId);
+
+          // 批量查询去重
+          const duplicates = await mediaService.batchCheckDuplicates(uniqueFileIds);
+
+          // 过滤掉重复的文件
+          const beforeCount = uploadedFiles.length;
+          uploadedFiles = uploadedFiles.filter(f => !duplicates.includes(f.uniqueFileId));
+          duplicateCount += (beforeCount - uploadedFiles.length);
+
+          if (duplicateCount > 0) {
+            logger.info(`Removed ${duplicateCount} duplicate files`);
           }
-
-          uploadedFiles.push({ fileId, uniqueFileId, fileType });
-          logger.debug(`Collected file: ${fileType}, total: ${uploadedFiles.length}`);
-        } catch (error) {
-          logger.error(`Failed to check duplicate for file ${uniqueFileId}`, error);
-          // 继续处理其他文件
         }
       }
     }

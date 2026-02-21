@@ -117,6 +117,22 @@ export const RATE_LIMIT = {
 } as const;
 
 /**
+ * 搬运任务配置
+ */
+export const TRANSFER_CONFIG = {
+  BATCH_SIZE: 500, // 每批次文件数量
+  FORWARD_RATE: 1000, // 转发间隔（毫秒）- 每秒1个文件
+  PAUSE_AFTER_FILES: 50, // 每转发N个文件后暂停
+  PAUSE_DURATION: 10000, // 暂停时长（毫秒）- 10秒
+  LONG_PAUSE_AFTER_FILES: 200, // 每转发N个文件后长暂停
+  LONG_PAUSE_DURATION: 60000, // 长暂停时长（毫秒）- 1分钟
+  PROGRESS_UPDATE_INTERVAL: 10, // 每N个文件更新一次进度
+  DB_BATCH_SIZE: 100, // 数据库批量查询大小
+  MAX_DAILY_TRANSFER: 5000, // 每日最大搬运数量
+  FLOOD_WAIT_MULTIPLIER: 1.2, // 限流后等待时间倍数
+} as const;
+
+/**
  * 注意：权限等级定义已统一到 utils/permissions.ts
  * 请使用 UserLevel 和 PermissionLevel 枚举
  *

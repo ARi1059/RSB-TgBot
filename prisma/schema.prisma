@@ -77,3 +77,29 @@ model Setting {
 
   @@map("settings")
 }
+
+// 搬运任务表（用于断点续传）
+model TransferTask {
+  id              Int      @id @default(autoincrement())
+  userId          BigInt   @map("user_id") // 发起任务的用户
+  sourceChannel   String   @map("source_channel") // 源频道
+  title           String   // 合集标题
+  description     String?  // 合集描述
+  status          String   @default("pending") // pending, running, paused, completed, failed
+  totalScanned    Int      @default(0) @map("total_scanned") // 已扫描消息数
+  totalMatched    Int      @default(0) @map("total_matched") // 匹配的消息数
+  totalTransferred Int     @default(0) @map("total_transferred") // 已转发文件数
+  lastMessageId   Int?     @map("last_message_id") // 最后处理的消息ID（用于断点续传）
+  batchNumber     Int      @default(0) @map("batch_number") // 当前批次号
+  config          String   @db.Text // JSON格式的完整配置
+  errorMessage    String?  @map("error_message") @db.Text // 错误信息
+  startedAt       DateTime? @map("started_at") // 开始时间
+  completedAt     DateTime? @map("completed_at") // 完成时间
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("transfer_tasks")
+}

@@ -125,6 +125,30 @@ export class MediaService {
   }
 
   /**
+   * 批量检查文件是否已存在（优化版）
+   */
+  async batchCheckDuplicates(uniqueFileIds: string[]): Promise<string[]> {
+    return executeWithErrorHandling('MediaService', 'batchCheckDuplicates', async () => {
+      if (uniqueFileIds.length === 0) {
+        return [];
+      }
+
+      const existingFiles = await prisma.mediaFile.findMany({
+        where: {
+          uniqueFileId: {
+            in: uniqueFileIds,
+          },
+        },
+        select: {
+          uniqueFileId: true,
+        },
+      });
+
+      return existingFiles.map(f => f.uniqueFileId);
+    });
+  }
+
+  /**
    * 删除媒体文件
    */
   async deleteMediaFile(id: number) {
