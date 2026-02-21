@@ -115,10 +115,7 @@ echo "-------------------"
 files=(
     "src/services/sessionPool.ts"
     "src/bot/conversations/sessionManageFlow.ts"
-    "MULTI_SESSION_GUIDE.md"
-    "MULTI_SESSION_BEST_PRACTICES.md"
-    "QUICK_START.md"
-    "DATABASE_MIGRATION.md"
+    "README.md"
 )
 
 for file in "${files[@]}"; do
