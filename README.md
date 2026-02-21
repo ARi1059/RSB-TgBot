@@ -1,109 +1,143 @@
 # RSB Telegram Bot
 
-一个用于媒体资源管理的 Telegram Bot，支持以 file_id 形式存储和分享媒体合集。
+一个功能完善的 Telegram 媒体资源管理机器人，支持媒体合集管理、权限控制、频道搬运和多账号池管理。
 
-## 功能特性
+## 核心功能
 
-- 📤 媒体文件上传与管理（图片、视频、文档、音频）
-- 🔗 深链接分享合集
-- 🎯 基于 unique_file_id 的自动去重
-- 👥 管理员权限控制
-- 📢 全员消息推送
-- 🤖 自动搬运功能（Userbot）
-- 🔄 **多 Session 账号池**（自动切换、断点续传）
-- 💾 PostgreSQL 数据持久化
+### 📤 媒体管理
+- 支持图片、视频、文档、音频等多种媒体类型
+- 基于 `unique_file_id` 的智能去重
+- 三级权限控制（普通/付费/VIP）
+- 深链接分享合集（`t.me/bot?start=token`）
 
-## ⭐ 新功能：多 Session 账号管理
+### 🔐 权限系统
+- 用户等级管理（Normal/Paid/VIP）
+- 管理员权限控制
+- 内容访问权限分级
+- 用户权限升级流程
 
-支持使用多个 Telegram UserBot Session 账号来完成大批量搬运工作：
+### 📢 管理功能
+- 全员消息广播
+- 合集编辑与搜索
+- 用户管理与权限调整
+- 管理员联系人配置
+- 自定义欢迎消息
 
-- ✅ **账号池管理**：添加、删除、启用/禁用多个 session 账号
-- ✅ **自动切换**：账号被限流时自动切换到下一个可用账号
-- ✅ **断点续传**：从限流处继续搬运，不丢失进度
-- ✅ **Bot 内管理**：直接在 Bot 中登录和管理账号
-- ✅ **智能调度**：按优先级和使用频率自动选择最佳账号
-- ✅ **统计监控**：实时查看账号状态、转发统计、限流信息
+### 🤖 频道搬运
+- 批量转移频道内容
+- 关键词过滤和日期范围选择
+- 多 Session 账号池管理
+- 自动切换账号（限流时）
+- 断点续传功能
+- 实时进度监控
 
-**📚 完整文档导航：** [MULTI_SESSION_README.md](./MULTI_SESSION_README.md) - 完整文档索引
+### 🔄 多 Session 账号池
 
-**🚀 快速入口：**
-- **新手入门** → [QUICK_START.md](./QUICK_START.md) - 5 分钟快速上手
-- **快速配置** → [MULTI_SESSION_QUICK_CONFIG.md](./MULTI_SESSION_QUICK_CONFIG.md) - 3 种方案配置
-- **实战教程** → [MULTI_SESSION_TUTORIAL.md](./MULTI_SESSION_TUTORIAL.md) - 手把手操作
-- **配置示例** → [.env.multi-session.example](./.env.multi-session.example) - 详细配置
-- **常见问题** → [MULTI_SESSION_FAQ.md](./MULTI_SESSION_FAQ.md) - 35 个问题解答
+支持使用多个 Telegram UserBot 账号完成大规模搬运任务：
 
-**📖 更多文档：**
-- [配置迁移指南](./MULTI_SESSION_MIGRATION.md) - 从单 Session 升级
-- [功能详细指南](./MULTI_SESSION_GUIDE.md) - 完整功能说明
-- [最佳实践](./MULTI_SESSION_BEST_PRACTICES.md) - 优化和技巧
-- [数据库示例](./MULTI_SESSION_DATABASE_EXAMPLES.md) - SQL 操作示例
+- **账号管理**：Bot 内直接登录、添加、删除账号
+- **智能调度**：按优先级和可用性自动选择最佳账号
+- **自动切换**：账号被限流时自动切换到下一个可用账号
+- **断点续传**：从中断处继续，不丢失进度
+- **统计监控**：实时查看账号状态、转发统计、限流信息
+- **灵活配置**：支持环境变量或 Bot 内配置
 
 ## 技术栈
 
-- **Bot 框架**: grammY + TypeScript
-- **数据库**: PostgreSQL + Prisma ORM
-- **Userbot**: GramJS
-- **部署**: Docker + Docker Compose
+- **语言**: TypeScript (ES2022)
+- **Bot 框架**: grammY v1.30.0 + @grammyjs/conversations
+- **UserBot**: GramJS (Telegram v2.25.11)
+- **数据库**: PostgreSQL + Prisma ORM v5.22.0
+- **运行时**: Node.js
+- **工具**: axios, nanoid, dotenv
 
 ## 快速开始
 
-### 1. 克隆项目
+### 1. 环境准备
 
 ```bash
+# 克隆项目
 git clone <repository-url>
 cd RSB-TgBot
-```
 
-### 2. 安装依赖
-
-```bash
+# 安装依赖
 npm install
 ```
 
-### 3. 配置环境变量
+### 2. 配置环境变量
 
-复制 `.env.example` 为 `.env` 并填写配置：
-
-```bash
-cp .env.example .env
-```
-
-编辑 `.env` 文件：
+复制 `.env.example` 为 `.env` 并填写必需配置：
 
 ```env
-BOT_TOKEN=your_bot_token_here
-ADMIN_IDS=123456789,987654321
+# Bot 基础配置（必需）
+BOT_TOKEN=your_bot_token_here          # 从 @BotFather 获取
+BOT_USERNAME=your_bot_username         # Bot 用户名（不含 @）
+ADMIN_IDS=123456789,987654321          # 管理员 Telegram ID（逗号分隔）
+
+# 数据库配置（必需）
 DATABASE_URL=postgresql://user:password@localhost:5432/rsb_tgbot
-BOT_USERNAME=your_bot_username
+
+# 环境设置
+NODE_ENV=development                    # development 或 production
+
+# 可选配置
+ADMIN_CONTACT=your_admin_username       # 管理员联系方式
+PRIVATE_CHANNEL_ID=-1001234567890      # 私有频道 ID（用于发布合集）
+HTTP_PROXY=http://127.0.0.1:7890       # HTTP 代理（如需要）
+HTTPS_PROXY=http://127.0.0.1:7890      # HTTPS 代理（如需要）
 ```
 
-### 4. 初始化数据库
+### 3. 初始化数据库
 
 ```bash
+# 生成 Prisma Client
 npm run prisma:generate
+
+# 运行数据库迁移
 npm run prisma:migrate
+
+# （可选）打开 Prisma Studio 查看数据
+npm run prisma:studio
 ```
 
-### 5. 启动 Bot
+### 4. 启动 Bot
 
-开发模式：
+**开发模式**（支持热重载）：
 ```bash
 npm run dev
 ```
 
-生产模式：
+**生产模式**：
 ```bash
+# 编译 TypeScript
 npm run build
+
+# 启动编译后的代码
 npm start
 ```
 
-## Docker 部署
+## 配置 UserBot 账号（用于频道搬运）
 
-使用 Docker Compose 一键部署：
+### 方法 1: 通过 Bot 界面配置（推荐）
 
+1. 启动 Bot 后，发送 `/session` 命令
+2. 选择"添加新账号"
+3. 输入账号名称、API ID、API Hash
+4. 按提示完成登录验证
+
+### 方法 2: 通过环境变量配置（向后兼容）
+
+在 `.env` 文件中添加：
+
+```env
+USERBOT_API_ID=your_api_id             # 从 https://my.telegram.org 获取
+USERBOT_API_HASH=your_api_hash
+USERBOT_SESSION=your_session_string    # 使用 npm run userbot:login 生成
+```
+
+生成 Session String：
 ```bash
-docker-compose up -d
+npm run userbot:login
 ```
 
 ## 项目结构
@@ -111,52 +145,226 @@ docker-compose up -d
 ```
 RSB-TgBot/
 ├── src/
-│   ├── bot/              # Bot 主逻辑
-│   │   ├── commands/     # 命令处理器
-│   │   ├── conversations/# 多步骤会话
-│   │   ├── middlewares/  # 中间件
-│   │   └── handlers/     # 事件处理器
-│   ├── userbot/          # Userbot 自动搬运
-│   ├── database/         # 数据库连接
-│   ├── services/         # 业务逻辑服务
-│   └── utils/            # 工具函数
-├── prisma/               # Prisma schema
-└── docker-compose.yml    # Docker 配置
+│   ├── bot/                    # Bot 主逻辑
+│   │   ├── commands/           # 命令处理器（start, admin, transfer 等）
+│   │   ├── conversations/      # 11 个多步骤会话流程
+│   │   ├── handlers/           # 事件处理器（回调、消息、媒体）
+│   │   ├── middlewares/        # 中间件（认证、会话、去重）
+│   │   ├── setup/              # Bot 初始化和命令注册
+│   │   ├── ui/                 # UI 组件
+│   │   │   ├── keyboards/      # 内联键盘工厂
+│   │   │   ├── builders/       # 消息构建器
+│   │   │   └── formatters/     # 文本格式化工具
+│   │   └── utils/              # 辅助函数
+│   ├── userbot/                # UserBot 频道搬运
+│   │   ├── client.ts           # TelegramClient 池管理
+│   │   └── transfer.ts         # 搬运逻辑与会话切换
+│   ├── services/               # 业务逻辑服务（9 个服务）
+│   │   ├── collection.ts       # 合集 CRUD + 缓存
+│   │   ├── media.ts            # 媒体文件管理 + 去重
+│   │   ├── user.ts             # 用户管理
+│   │   ├── permission.ts       # 权限检查
+│   │   ├── sessionPool.ts      # UserBot 会话池管理
+│   │   ├── transfer.ts         # 搬运任务跟踪
+│   │   ├── setting.ts          # 系统设置（欢迎消息等）
+│   │   ├── channelPublisher.ts # 频道发布
+│   │   └── customerService.ts  # 用户消息转发
+│   ├── database/
+│   │   └── client.ts           # Prisma 客户端单例
+│   ├── config/
+│   │   └── index.ts            # 配置管理
+│   ├── constants/
+│   │   └── index.ts            # 常量和回调定义
+│   ├── types/
+│   │   └── collection.ts       # TypeScript 类型定义
+│   └── utils/                  # 通用工具函数
+│       ├── logger.ts           # 日志工具
+│       ├── cache.ts            # 内存缓存（带 TTL）
+│       ├── permissions.ts      # 权限枚举和辅助函数
+│       ├── token.ts            # Token 生成
+│       ├── template.ts         # 模板渲染
+│       ├── errorHandler.ts     # 错误处理
+│       └── date.ts             # 日期工具（北京时区）
+├── prisma/
+│   ├── schema.prisma           # 数据库模型（6 个模型）
+│   └── migrations/             # 数据库迁移文件
+├── scripts/                    # 部署和工具脚本
+├── dist/                       # 编译输出目录
+├── package.json                # 项目依赖
+├── tsconfig.json               # TypeScript 配置
+└── .env                        # 环境变量配置
 ```
+
+## 数据库模型
+
+项目使用 6 个 Prisma 模型：
+
+- **User**: 用户信息和权限等级
+- **Collection**: 媒体合集元数据
+- **MediaFile**: 媒体文件记录（带去重）
+- **Setting**: 系统设置（欢迎消息等）
+- **TransferTask**: 搬运任务进度跟踪
+- **UserBotSession**: UserBot 账号池管理
 
 ## 主要命令
 
 ### 管理员命令
 
 - `/start` - 启动 Bot / 访问深链合集
-- `/upload` - 上传媒体文件
-- `/display` - 查看所有合集
-- `/publish` - 全员推送消息
-- `/transfer` - 搬运频道内容
-- `/session` - **Session 账号管理**（新功能）
+- `/admin` - 管理员控制面板
+- `/upload` - 上传媒体文件到合集
+- `/display` - 查看和管理所有合集
+- `/publish` - 向所有用户广播消息
+- `/transfer` - 配置和执行频道搬运
+- `/session` - 管理 UserBot 账号池
+- `/welcome` - 设置欢迎消息
+- `/contacts` - 管理管理员联系方式
+- `/users` - 用户管理和权限调整
 
 ### 用户命令
 
-- `/start <token>` - 访问指定合集
+- `/start` - 查看欢迎消息
+- `/start <token>` - 访问指定合集（深链接）
 
 ## 开发指南
 
-### 数据库迁移
+### 可用脚本
+
+```bash
+# 开发
+npm run dev              # 开发模式（热重载）
+npm run build            # 编译 TypeScript
+npm start                # 运行编译后的代码
+
+# UserBot
+npm run userbot          # 运行 UserBot
+npm run userbot:login    # 登录 UserBot 生成 session
+
+# 数据库
+npm run prisma:generate  # 生成 Prisma Client
+npm run prisma:migrate   # 运行数据库迁移
+npm run prisma:studio    # 打开 Prisma Studio GUI
+
+# 类型检查
+npm run type-check       # TypeScript 类型检查
+npm run prisma:sync      # 同步 Prisma + 类型检查
+```
+
+### 添加新功能
+
+1. **添加命令**: 在 [src/bot/commands/](src/bot/commands/) 创建命令处理器
+2. **添加会话流程**: 在 [src/bot/conversations/](src/bot/conversations/) 创建多步骤会话
+3. **添加业务逻辑**: 在 [src/services/](src/services/) 添加服务层代码
+4. **注册命令**: 在 [src/bot/setup/commands.ts](src/bot/setup/commands.ts) 注册新命令
+
+### 数据库操作
 
 ```bash
 # 创建新迁移
 npm run prisma:migrate
 
-# 查看数据库
+# 重置数据库（开发环境）
+npx prisma migrate reset
+
+# 查看数据库内容
 npm run prisma:studio
 ```
 
-### 添加新功能
+## 部署
 
-1. 在 `src/bot/commands/` 创建命令处理器
-2. 在 `src/services/` 添加业务逻辑
-3. 在 `src/bot/index.ts` 注册命令
+### 生产环境部署
+
+1. 配置生产环境变量（`.env.production`）
+2. 编译项目：`npm run build`
+3. 运行迁移：`npm run prisma:migrate`
+4. 启动服务：`npm start`
+
+### 使用 PM2 部署
+
+```bash
+# 安装 PM2
+npm install -g pm2
+
+# 启动 Bot
+pm2 start dist/bot/index.js --name rsb-bot
+
+# 查看日志
+pm2 logs rsb-bot
+
+# 重启
+pm2 restart rsb-bot
+```
+
+### Docker 部署
+
+```bash
+# 使用 Docker Compose
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+
+# 停止服务
+docker-compose down
+```
+
+## 常见问题
+
+### 如何获取 Telegram Bot Token？
+
+1. 在 Telegram 中找到 [@BotFather](https://t.me/BotFather)
+2. 发送 `/newbot` 创建新 Bot
+3. 按提示设置 Bot 名称和用户名
+4. 获取 Bot Token
+
+### 如何获取 Telegram ID？
+
+1. 在 Telegram 中找到 [@userinfobot](https://t.me/userinfobot)
+2. 发送任意消息
+3. Bot 会返回你的 Telegram ID
+
+### 如何获取 API ID 和 API Hash？
+
+1. 访问 [https://my.telegram.org](https://my.telegram.org)
+2. 登录你的 Telegram 账号
+3. 进入 "API development tools"
+4. 创建应用获取 API ID 和 API Hash
+
+### 多账号搬运如何工作？
+
+Bot 维护一个 UserBot 账号池，当执行搬运任务时：
+1. 自动选择优先级最高的可用账号
+2. 如果账号被限流，自动切换到下一个账号
+3. 记录搬运进度，支持断点续传
+4. 实时更新账号状态和统计信息
+
+### 如何处理代理问题？
+
+如果在中国大陆使用，需要配置代理：
+
+```env
+HTTP_PROXY=http://127.0.0.1:7890
+HTTPS_PROXY=http://127.0.0.1:7890
+```
+
+确保代理服务正在运行并可访问。
+
+## 技术特性
+
+- **TypeScript**: 完整的类型安全
+- **Prisma ORM**: 类型安全的数据库操作
+- **会话管理**: 支持复杂的多步骤对话
+- **智能去重**: 基于 `unique_file_id` 防止重复文件
+- **缓存机制**: 内存缓存提升性能
+- **错误处理**: 完善的错误捕获和日志记录
+- **权限系统**: 灵活的三级权限控制
+- **账号池**: 多账号自动调度和切换
+- **断点续传**: 任务中断后可继续执行
 
 ## 许可证
 
-MIT
+MIT License
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
