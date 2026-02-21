@@ -17,7 +17,7 @@ export class Config {
   static readonly DATABASE_URL = process.env.DATABASE_URL!;
 
   // 频道配置
-  static readonly PUBLIC_CHANNEL_ID = process.env.PUBLIC_CHANNEL_ID;
+  // PUBLIC_CHANNEL_ID 已移除
   static readonly PRIVATE_CHANNEL_ID = process.env.PRIVATE_CHANNEL_ID;
 
   // UserBot 配置
@@ -106,7 +106,6 @@ export class Config {
       `Admin IDs: ${this.ADMIN_IDS.join(', ')}`,
       `Admin Contact: ${this.ADMIN_CONTACT}`,
       `Proxy: ${this.HTTP_PROXY || 'None'}`,
-      `Public Channel: ${this.PUBLIC_CHANNEL_ID || 'Not configured'}`,
       `Private Channel: ${this.PRIVATE_CHANNEL_ID || 'Not configured'}`,
       `UserBot: ${hasUserbot ? 'Configured' : 'Not configured'}`,
     ].join('\n');

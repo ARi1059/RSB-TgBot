@@ -64,6 +64,12 @@ export function registerCallbackHandlers(bot: Bot<MyContext>): void {
         return;
       }
 
+      // 媒体文件分页回调（资源分发时的分页）
+      if (data.startsWith('media_page:')) {
+        await handleMediaPageCallback(ctx, data);
+        return;
+      }
+
       // 合集分页回调（深链接访问时的下一页）
       if (data.startsWith('collection_next:')) {
         await handleCollectionNextCallback(ctx, data);
@@ -662,6 +668,24 @@ async function handleConfirmDeleteMediaCallback(ctx: MyContext, data: string): P
 
 async function handleCancelDeleteMediaCallback(ctx: MyContext, data: string): Promise<void> {
   await showCancelCaptionAndReturnToMenu(ctx, '❌ 已取消删除');
+}
+
+/**
+ * 处理媒体文件分页回调（资源分发时的分页）
+ * 格式: media_page:token:page
+ */
+async function handleMediaPageCallback(ctx: MyContext, data: string): Promise<void> {
+  const parts = data.split(':');
+  const token = parts[1];
+  const page = parseInt(parts[2]);
+
+  try {
+    const { handleMediaPageCallback: handleMediaPage } = await import('../commands/start');
+    await handleMediaPage(ctx, token, page);
+  } catch (error) {
+    logger.error('Failed to handle media page callback', error);
+    await ctx.answerCallbackQuery({ text: '❌ 加载失败' });
+  }
 }
 
 /**

@@ -3,7 +3,7 @@ import { Context, InlineKeyboard } from 'grammy';
 import mediaService from '../../services/media';
 import collectionService from '../../services/collection';
 import userService from '../../services/user';
-import { publishToChannels } from '../../services/channelPublisher';
+import { publishToPrivateChannel } from '../../services/channelPublisher';
 import { createLogger } from '../../utils/logger';
 import { KeyboardFactory } from '../ui/keyboards/KeyboardFactory';
 
@@ -220,7 +220,7 @@ export async function transferExecuteFlow(conversation: MyConversation, ctx: MyC
     defaultCaption += counts.join('、');
     defaultCaption += `\n\n🔗 ${deepLink}`;
 
-    await publishToChannels(ctx, {
+    await publishToPrivateChannel(ctx, {
       title: collection.title,
       description: collection.description || undefined,
       deepLink,

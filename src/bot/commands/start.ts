@@ -1,4 +1,4 @@
-import { Bot } from 'grammy';
+import { Bot, InlineKeyboard } from 'grammy';
 import { createLogger } from '../../utils/logger';
 import { renderTemplate } from '../../utils/template';
 import { MyContext } from '../middlewares/session';
@@ -11,6 +11,9 @@ import { KeyboardFactory } from '../ui/keyboards/KeyboardFactory';
 import { MediaFile } from '@prisma/client';
 
 const logger = createLogger('StartCommand');
+
+// 每页显示的文件数量
+const FILES_PER_PAGE = 10;
 
 /**
  * 注册 /start 命令
@@ -31,8 +34,12 @@ export function registerStartCommand(bot: Bot<MyContext>): void {
     const startParam = ctx.match;
 
     if (startParam) {
+      // 管理员获得最高权限（VIP）
+      const isAdmin = permissionService.isAdmin(userId);
+      const effectiveUserLevel = isAdmin ? 2 : user.userLevel;
+
       // 深链访问 - 展示合集（带权限验证）
-      await handleDeepLink(ctx, startParam as string, user.userLevel);
+      await handleDeepLink(ctx, startParam as string, effectiveUserLevel);
     } else {
       // 普通访问 - 显示欢迎消息和命令按钮
       await handleWelcome(ctx, userId);
@@ -97,29 +104,14 @@ async function handleDeepLink(ctx: MyContext, token: string, userLevel: number):
     hasRestrictedFiles
   );
 
-  // 发送合集信息（不添加按钮，因为后面还会发送媒体组）
-  await ctx.reply(fileInfoMessage);
-
   // 准备媒体文件数组
   const mediaFiles = collection.mediaFiles.map((media: MediaFile) => ({
     fileId: media.fileId,
     fileType: media.fileType,
   }));
 
-  // 以媒体组形式发送所有文件
-  try {
-    await sendMediaGroup(ctx, mediaFiles);
-
-    // 发送完成提示，并添加返回菜单按钮
-    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
-    await ctx.reply('✅ 所有文件发送完成！', { reply_markup: keyboard });
-  } catch (error) {
-    logger.error('Failed to send media group', error);
-
-    // 发送失败提示，也添加返回菜单按钮
-    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
-    await ctx.reply('❌ 部分文件发送失败', { reply_markup: keyboard });
-  }
+  // 发送第一页文件（带分页按钮）
+  await sendMediaPage(ctx, collection.id, token, fileInfoMessage, mediaFiles, 1);
 }
 
 /**
@@ -213,6 +205,108 @@ function buildFileInfoMessage(
   }
 
   return message;
+}
+
+/**
+ * 发送媒体文件分页
+ */
+async function sendMediaPage(
+  ctx: MyContext,
+  collectionId: number,
+  token: string,
+  infoMessage: string,
+  mediaFiles: Array<{ fileId: string; fileType: string }>,
+  page: number
+): Promise<void> {
+  const totalPages = Math.ceil(mediaFiles.length / FILES_PER_PAGE);
+  const startIndex = (page - 1) * FILES_PER_PAGE;
+  const endIndex = startIndex + FILES_PER_PAGE;
+  const currentPageFiles = mediaFiles.slice(startIndex, endIndex);
+
+  // 发送合集信息（仅第一页）
+  if (page === 1) {
+    await ctx.reply(infoMessage);
+  }
+
+  // 发送当前页的文件
+  try {
+    await sendMediaGroup(ctx, currentPageFiles);
+
+    // 构建分页按钮
+    const keyboard = new InlineKeyboard();
+
+    if (totalPages > 1) {
+      // 添加分页按钮
+      if (page > 1) {
+        keyboard.text('⬅️ 上一页', `media_page:${token}:${page - 1}`);
+      }
+
+      keyboard.text(`${page}/${totalPages}`, 'noop');
+
+      if (page < totalPages) {
+        keyboard.text('➡️ 下一页', `media_page:${token}:${page + 1}`);
+      }
+
+      // 在同一行添加返回菜单按钮
+      keyboard.text('🏠 返回菜单', 'back_to_menu');
+    } else {
+      // 只有一页时，单独显示返回菜单按钮
+      keyboard.text('🏠 返回菜单', 'back_to_menu');
+    }
+
+    const statusMessage = totalPages > 1
+      ? `📄 第 ${page}/${totalPages} 页（共 ${mediaFiles.length} 个文件）`
+      : `✅ 所有文件发送完成！（共 ${mediaFiles.length} 个文件）`;
+
+    await ctx.reply(statusMessage, { reply_markup: keyboard });
+  } catch (error) {
+    logger.error('Failed to send media page', error);
+
+    const keyboard = KeyboardFactory.createBackToMenuKeyboard();
+    await ctx.reply('❌ 部分文件发送失败', { reply_markup: keyboard });
+  }
+}
+
+/**
+ * 处理媒体分页回调（供 callbacks.ts 调用）
+ */
+export async function handleMediaPageCallback(
+  ctx: MyContext,
+  token: string,
+  page: number
+): Promise<void> {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  // 获取用户信息
+  const user = await userService.getOrCreateUser(userId, {
+    firstName: ctx.from?.first_name,
+    lastName: ctx.from?.last_name,
+    username: ctx.from?.username,
+  });
+
+  // 管理员获得最高权限（VIP）
+  const isAdmin = permissionService.isAdmin(userId);
+  const effectiveUserLevel = isAdmin ? 2 : user.userLevel;
+
+  // 获取合集信息（带权限验证）
+  const collection = await collectionService.getCollectionByToken(token, effectiveUserLevel);
+
+  if (!collection) {
+    await ctx.answerCallbackQuery({ text: '❌ 合集不存在或无权限访问' });
+    return;
+  }
+
+  await ctx.answerCallbackQuery({ text: `正在加载第 ${page} 页...` });
+
+  // 准备媒体文件数组
+  const mediaFiles = collection.mediaFiles.map((media: MediaFile) => ({
+    fileId: media.fileId,
+    fileType: media.fileType,
+  }));
+
+  // 发送指定页的文件
+  await sendMediaPage(ctx, collection.id, token, '', mediaFiles, page);
 }
 
 /**
